@@ -3,7 +3,10 @@ import { Warning } from '@phosphor-icons/react';
 import { formatRupees } from '../domain/money';
 import type { BackupPayload, BankAccount } from '../domain/types';
 
-function DialogShell({
+/**
+ * Shared accessible modal dialog shell with backdrop click and Escape-key dismissal.
+ */
+export function DialogShell({
   title,
   onCancel,
   children,
