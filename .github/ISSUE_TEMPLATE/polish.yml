@@ -1,0 +1,22 @@
+name: Polish / UI tweak
+description: Visual, copy, or ergonomics improvement
+labels: ["polish"]
+body:
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      options:
+        - Urgent
+        - High
+        - Medium
+        - Low
+      default: 2
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: What feels rough or could be cleaner?
+    validations:
+      required: true

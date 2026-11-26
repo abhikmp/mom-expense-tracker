@@ -37,4 +37,26 @@ describe('Project scaffold and defaults', () => {
       expect(buf.subarray(0, 8)).toEqual(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
     }
   });
+
+  it('uses valid SemVer in package.json starting at 1.0.0', () => {
+    const pkg = JSON.parse(fs.readFileSync(path.resolve(process.cwd(), 'package.json'), 'utf8')) as {
+      version: string;
+    };
+    expect(pkg.version).toMatch(/^\d+\.\d+\.\d+$/);
+    expect(pkg.version).toBe('1.0.0');
+  });
+
+  it('includes GitHub issue templates with expected labels and priorities', () => {
+    const templateDir = path.resolve(process.cwd(), '.github/ISSUE_TEMPLATE');
+    const config = fs.readFileSync(path.join(templateDir, 'config.yml'), 'utf8');
+    expect(config).toContain('blank_issues_enabled: true');
+
+    for (const label of ['bug', 'feature', 'polish'] as const) {
+      const content = fs.readFileSync(path.join(templateDir, `${label}.yml`), 'utf8');
+      expect(content).toContain(`labels: ["${label}"]`);
+      for (const priority of ['Urgent', 'High', 'Medium', 'Low']) {
+        expect(content).toContain(`- ${priority}`);
+      }
+    }
+  });
 });
