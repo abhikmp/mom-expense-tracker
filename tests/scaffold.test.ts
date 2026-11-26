@@ -46,14 +46,26 @@ describe('Project scaffold and defaults', () => {
     expect(pkg.version).toBe('1.0.0');
   });
 
-  it('includes GitHub issue templates with expected labels and priorities', () => {
+  it('includes GitHub issue templates with native issue types, ui/ux label, and priorities', () => {
     const templateDir = path.resolve(process.cwd(), '.github/ISSUE_TEMPLATE');
     const config = fs.readFileSync(path.join(templateDir, 'config.yml'), 'utf8');
     expect(config).toContain('blank_issues_enabled: true');
+    expect(fs.existsSync(path.join(templateDir, 'polish.yml'))).toBe(false);
 
-    for (const label of ['bug', 'feature', 'polish'] as const) {
-      const content = fs.readFileSync(path.join(templateDir, `${label}.yml`), 'utf8');
-      expect(content).toContain(`labels: ["${label}"]`);
+    const templates = [
+      { file: 'bug.yml', type: 'Bug', expectedLabels: null },
+      { file: 'feature.yml', type: 'Feature', expectedLabels: null },
+      { file: 'ui-ux.yml', type: 'Feature', expectedLabels: 'labels: ["ui/ux"]' },
+    ] as const;
+
+    for (const tpl of templates) {
+      const content = fs.readFileSync(path.join(templateDir, tpl.file), 'utf8');
+      expect(content).toContain(`type: "${tpl.type}"`);
+      if (tpl.expectedLabels) {
+        expect(content).toContain(tpl.expectedLabels);
+      } else {
+        expect(content).not.toContain('labels:');
+      }
       for (const priority of ['Urgent', 'High', 'Medium', 'Low']) {
         expect(content).toContain(`- ${priority}`);
       }

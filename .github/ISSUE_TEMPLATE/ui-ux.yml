@@ -1,6 +1,7 @@
-name: Polish / UI tweak
-description: Visual, copy, or ergonomics improvement
-labels: ["polish"]
+name: UI / UX tweak
+description: Visual, layout, copy, or ergonomics improvement
+type: "Feature"
+labels: ["ui/ux"]
 body:
   - type: dropdown
     id: priority
