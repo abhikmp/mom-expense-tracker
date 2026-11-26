@@ -99,6 +99,8 @@ export function ManageView() {
       setNewAccName('');
       setNewAccBal('');
       setNewAccError('');
+    } catch {
+      // AppContext surfaced an error toast; preserve form inputs.
     } finally {
       setSubmitting(false);
     }
@@ -117,6 +119,8 @@ export function ManageView() {
       await renameAccount(accountId, trimmed);
       setEditingAccountId(null);
       setRenameAccError('');
+    } catch {
+      // AppContext surfaced an error toast; keep inline editor open.
     } finally {
       setSubmitting(false);
     }
@@ -135,6 +139,8 @@ export function ManageView() {
       await adjustAccountBalance(accountId, desiredPaise);
       setAdjustAccountId(null);
       setAdjustAccError('');
+    } catch {
+      // AppContext surfaced an error toast; keep inline editor open.
     } finally {
       setSubmitting(false);
     }
@@ -153,6 +159,8 @@ export function ManageView() {
       await addCategory(trimmed);
       setNewCatName('');
       setNewCatError('');
+    } catch {
+      // AppContext surfaced an error toast; preserve category input.
     } finally {
       setSubmitting(false);
     }
@@ -171,6 +179,8 @@ export function ManageView() {
       await renameCategory(categoryId, trimmed);
       setEditingCategoryId(null);
       setRenameCatError('');
+    } catch {
+      // AppContext surfaced an error toast; keep inline editor open.
     } finally {
       setSubmitting(false);
     }
@@ -227,7 +237,7 @@ export function ManageView() {
               type="button"
               className="btn btn-secondary btn-sm"
               aria-pressed={isDark}
-              onClick={() => void toggleTheme()}
+              onClick={() => void toggleTheme().catch(() => {})}
             >
               {isDark ? <Sun size={18} aria-hidden="true" /> : <Moon size={18} aria-hidden="true" />}
               <span>{isDark ? 'Dark On' : 'Light On'}</span>
@@ -346,7 +356,7 @@ export function ManageView() {
                         if (!acc.archived && bal !== 0) {
                           setArchiveConfirmAccountId(acc.id);
                         } else {
-                          void setAccountArchived(acc.id, !acc.archived);
+                          void setAccountArchived(acc.id, !acc.archived).catch(() => {});
                         }
                       }}
                     >
@@ -513,7 +523,7 @@ export function ManageView() {
                       <button
                         type="button"
                         className="btn btn-secondary btn-sm"
-                        onClick={() => void setCategoryHidden(cat.id, !cat.hidden)}
+                        onClick={() => void setCategoryHidden(cat.id, !cat.hidden).catch(() => {})}
                       >
                         {cat.hidden ? 'Show' : 'Hide'}
                       </button>
@@ -578,7 +588,7 @@ export function ManageView() {
           <button
             type="button"
             className="btn btn-primary"
-            onClick={() => void exportCsv('all', getSortedTransactions(transactions))}
+            onClick={() => void exportCsv('all', getSortedTransactions(transactions)).catch(() => {})}
           >
             <ShareNetwork size={18} aria-hidden="true" />
             <span>Export All (.csv)</span>
@@ -598,7 +608,7 @@ export function ManageView() {
               className="btn btn-secondary btn-sm"
               onClick={() => {
                 setRestoreError('');
-                void downloadBackup();
+                void downloadBackup().catch(() => {});
               }}
             >
               Download Backup
@@ -627,10 +637,19 @@ export function ManageView() {
         balancePaise={archiveTargetBalance}
         onCancel={() => setArchiveConfirmAccountId(null)}
         onConfirm={() => {
-          if (!archiveTarget) return;
+          if (!archiveTarget || submitting) return;
           const id = archiveTarget.id;
-          setArchiveConfirmAccountId(null);
-          void setAccountArchived(id, true);
+          void (async () => {
+            setSubmitting(true);
+            try {
+              await setAccountArchived(id, true);
+              setArchiveConfirmAccountId(null);
+            } catch {
+              // AppContext surfaced an error toast; keep the archive dialog open.
+            } finally {
+              setSubmitting(false);
+            }
+          })();
         }}
       />
 
@@ -638,10 +657,19 @@ export function ManageView() {
         payload={restoreConfirmPayload}
         onCancel={() => setRestoreConfirmPayload(null)}
         onConfirm={() => {
-          if (!restoreConfirmPayload) return;
+          if (!restoreConfirmPayload || submitting) return;
           const payload = restoreConfirmPayload;
-          setRestoreConfirmPayload(null);
-          void restoreBackup(payload);
+          void (async () => {
+            setSubmitting(true);
+            try {
+              await restoreBackup(payload);
+              setRestoreConfirmPayload(null);
+            } catch {
+              // AppContext surfaced an error toast; keep the restore dialog open.
+            } finally {
+              setSubmitting(false);
+            }
+          })();
         }}
       />
     </>

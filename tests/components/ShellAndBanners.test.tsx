@@ -5,6 +5,8 @@ import { AppProvider, useApp } from '../../src/state/AppContext';
 import { TopBar } from '../../src/components/TopBar';
 import { BottomNav } from '../../src/components/BottomNav';
 import { Banners } from '../../src/components/Banners';
+import { HomeView } from '../../src/views/HomeView';
+import * as dbModule from '../../src/storage/db';
 import { TransactionRow } from '../../src/components/TransactionRow';
 import {
   ArchiveConfirmDialog,
@@ -470,6 +472,27 @@ describe('Banners and AppContext state flows', () => {
     expect(screen.getByTestId('changes')).toHaveTextContent('1');
     expect(screen.getByTestId('last-backup')).toHaveTextContent('none');
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+
+  it('shows an error banner on startup when IndexedDB fails to open rather than failing silently', async () => {
+    const dbName = nextDbName();
+    vi.spyOn(dbModule, 'openAppDb').mockRejectedValueOnce(new Error('IndexedDB blocked'));
+
+    render(
+      <AppProvider dbName={dbName}>
+        <HomeView onEditTx={vi.fn()} />
+      </AppProvider>
+    );
+
+    await waitFor(() => {
+      const banner = screen.getByRole('status');
+      expect(banner).toHaveClass('banner-error');
+      expect(banner).toHaveTextContent(
+        'Could not open on-device storage. Please make sure browser storage is allowed and reload.'
+      );
+    });
+
+    expect(screen.queryByText('No bank accounts added yet')).not.toBeInTheDocument();
   });
 });
 

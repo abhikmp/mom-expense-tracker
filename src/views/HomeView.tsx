@@ -25,6 +25,7 @@ export function HomeView({ onEditTx }: HomeViewProps) {
     categories,
     transactions,
     selectedMonth,
+    storageError,
     setSelectedMonth,
     navigate,
     openBankHistory,
@@ -55,7 +56,25 @@ export function HomeView({ onEditTx }: HomeViewProps) {
       <div className="phone-scroll">
         <Banners />
 
-        {activeAccounts.length === 0 ? (
+        {storageError && activeAccounts.length === 0 ? (
+          <section className="card" aria-label="Storage error">
+            <div className="empty-box">
+              <p
+                style={{
+                  margin: '0 0 10px',
+                  fontSize: '16px',
+                  color: 'var(--color-foreground)',
+                  fontWeight: 600,
+                }}
+              >
+                On-device storage unavailable
+              </p>
+              <p style={{ margin: 0 }}>
+                Please check your browser storage permissions and reload the page.
+              </p>
+            </div>
+          </section>
+        ) : activeAccounts.length === 0 ? (
           <section className="card" aria-label="Welcome setup">
             <div className="empty-box">
               <p

@@ -42,7 +42,7 @@ export function AllTransactionsView({ onEditTx }: AllTransactionsViewProps) {
           <button
             type="button"
             className="btn btn-primary btn-sm"
-            onClick={() => void exportCsv('filtered', filtered)}
+            onClick={() => void exportCsv('filtered', filtered).catch(() => {})}
           >
             <ShareNetwork size={16} aria-hidden="true" />
             <span>Export ({filtered.length})</span>

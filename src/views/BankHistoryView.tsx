@@ -42,7 +42,7 @@ export function BankHistoryView({ onEditTx }: BankHistoryViewProps) {
           <button
             type="button"
             className="btn btn-primary btn-sm"
-            onClick={() => void exportCsv('bank', bankTxs, acc.name)}
+            onClick={() => void exportCsv('bank', bankTxs, acc.name).catch(() => {})}
           >
             <ShareNetwork size={16} aria-hidden="true" />
             <span>Export ({bankTxs.length})</span>

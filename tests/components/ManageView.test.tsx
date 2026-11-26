@@ -14,6 +14,7 @@ import {
 } from '../../src/storage/db';
 import * as csvModule from '../../src/export/csv';
 import * as backupModule from '../../src/export/backup';
+import * as dbModule from '../../src/storage/db';
 
 function ManageHarness() {
   const { loading, view, navigate } = useApp();
@@ -509,5 +510,73 @@ describe('ManageView & AppShell', () => {
     await waitFor(() => {
       expect(scrollIntoViewMock).toHaveBeenCalled();
     });
+  });
+
+  it('surfaces an error toast without unhandled rejection and keeps RestoreConfirmDialog open when restoreBackup fails', async () => {
+    const user = userEvent.setup();
+    const dbName = nextDbName();
+    const db = await openAppDb(dbName);
+    await saveAccount(db, {
+      id: 'acc-1',
+      name: 'SBI Savings',
+      startingBalancePaise: 500_000,
+      createdAt: '2026-11-01T08:00:00.000Z',
+      archived: false,
+    });
+    db.close();
+
+    vi.spyOn(dbModule, 'restoreBackupAtomic').mockRejectedValueOnce(
+      new Error('Restore write failed')
+    );
+
+    render(
+      <AppProvider dbName={dbName}>
+        <AppShell />
+      </AppProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Manage' })).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Manage' }));
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { level: 1, name: 'Manage & Settings' })).toBeInTheDocument();
+    });
+
+    const validPayload: BackupPayload = {
+      _note: 'test',
+      schemaVersion: 1,
+      exportedAt: '2026-11-25T10:00:00.000Z',
+      accounts: [
+        {
+          id: 'acc-restored-1',
+          name: 'Restored HDFC',
+          startingBalancePaise: 900_000,
+          createdAt: '2026-11-01T08:00:00.000Z',
+          archived: false,
+        },
+      ],
+      categories: [],
+      transactions: [],
+    };
+
+    const fileInput = document.getElementById('restore-file-input') as HTMLInputElement;
+    const validFile = new File([JSON.stringify(validPayload)], 'backup.json', {
+      type: 'application/json',
+    });
+    await user.upload(fileInput, validFile);
+
+    const restoreDialog = await screen.findByRole('dialog', { name: 'Restore Backup?' });
+    await user.click(within(restoreDialog).getByRole('button', { name: 'Restore Now' }));
+
+    await waitFor(() => {
+      const toast = screen.getByRole('status');
+      expect(toast).toHaveClass('banner-error');
+      expect(toast).toHaveTextContent(/Could not restore backup/i);
+    });
+
+    expect(screen.getByRole('dialog', { name: 'Restore Backup?' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'Manage & Settings' })).toBeInTheDocument();
   });
 });

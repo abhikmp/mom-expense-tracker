@@ -36,7 +36,7 @@ export function TopBar({ title, showBack = false, onBack, rightAction }: TopBarP
         <button
           type="button"
           className="icon-btn"
-          onClick={() => void toggleTheme()}
+          onClick={() => void toggleTheme().catch(() => {})}
           aria-pressed={isDark}
           aria-label={isDark ? 'Switch to light theme' : 'Switch to dark theme'}
           title={isDark ? 'Light theme' : 'Dark theme'}

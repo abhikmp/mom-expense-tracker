@@ -6,6 +6,7 @@ import { AppProvider, useApp } from '../../src/state/AppContext';
 import { RecordView } from '../../src/views/RecordView';
 import { HomeView } from '../../src/views/HomeView';
 import { openAppDb, saveAccount, saveSettings } from '../../src/storage/db';
+import * as dbModule from '../../src/storage/db';
 
 let dbCounter = 0;
 
@@ -369,5 +370,96 @@ describe('RecordView', () => {
 
     expect(sbiBtn).toHaveAttribute('aria-pressed', 'true');
     expect(hdfcBtn).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('adds and selects a custom payment mode on Enter in #new-pay-mode-input without submitting #record-form, and cancels on Escape', async () => {
+    const user = userEvent.setup();
+    const dbName = nextDbName();
+    const db = await openAppDb(dbName);
+    await saveAccount(db, {
+      id: 'acc-1',
+      name: 'SBI Savings',
+      startingBalancePaise: 1_000_000,
+      createdAt: '2026-11-01T08:00:00.000Z',
+      archived: false,
+    });
+    db.close();
+
+    render(
+      <AppProvider dbName={dbName}>
+        <DirectRecordHarness />
+      </AppProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('loading')).not.toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: '+ Add New' }));
+    const newModeInput = screen.getByLabelText('New Payment Mode');
+    await user.type(newModeInput, 'UPI Lite{Enter}');
+
+    await waitFor(() => {
+      expect(screen.getByTestId('expense-modes')).toHaveTextContent('GPay,Cash,Card,UPI Lite');
+    });
+
+    const payGroup = screen.getByRole('group', { name: 'Payment Mode' });
+    expect(within(payGroup).getByRole('button', { name: 'UPI Lite' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    );
+    expect(screen.queryByLabelText('New Payment Mode')).not.toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.getByTestId('current-view')).toHaveTextContent('record');
+
+    // Escape closes inline input without adding or submitting outer form
+    await user.click(screen.getByRole('button', { name: '+ Add New' }));
+    const cancelInput = screen.getByLabelText('New Payment Mode');
+    await user.type(cancelInput, 'TempMode{Escape}');
+    expect(screen.queryByLabelText('New Payment Mode')).not.toBeInTheDocument();
+    expect(screen.getByTestId('expense-modes')).not.toHaveTextContent('TempMode');
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('surfaces an error toast without unhandled rejection and keeps form inputs intact when saving fails', async () => {
+    const user = userEvent.setup();
+    const dbName = nextDbName();
+    const db = await openAppDb(dbName);
+    await saveAccount(db, {
+      id: 'acc-1',
+      name: 'SBI Savings',
+      startingBalancePaise: 1_000_000,
+      createdAt: '2026-11-01T08:00:00.000Z',
+      archived: false,
+    });
+    db.close();
+
+    vi.spyOn(dbModule, 'createTransactionAtomic').mockRejectedValueOnce(
+      new Error('QuotaExceededError')
+    );
+
+    render(
+      <AppProvider dbName={dbName}>
+        <RecordHarness />
+      </AppProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('loading')).not.toBeInTheDocument();
+    });
+
+    await user.type(screen.getByLabelText('Amount (Rupees)'), '450');
+    await user.type(screen.getByLabelText('Note (optional)'), 'Apollo Pharmacy');
+    await user.click(screen.getByRole('button', { name: /Save Expense/ }));
+
+    await waitFor(() => {
+      const toast = screen.getByRole('status');
+      expect(toast).toHaveClass('banner-error');
+      expect(toast).toHaveTextContent(/Could not save this entry/i);
+    });
+
+    expect(screen.getByTestId('current-view')).toHaveTextContent('record');
+    expect(screen.getByLabelText('Amount (Rupees)')).toHaveValue('450');
+    expect(screen.getByLabelText('Note (optional)')).toHaveValue('Apollo Pharmacy');
   });
 });

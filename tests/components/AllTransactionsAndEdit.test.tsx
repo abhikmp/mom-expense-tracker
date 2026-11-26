@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event';
 import { AppProvider, useApp } from '../../src/state/AppContext';
 import { AllTransactionsView } from '../../src/views/AllTransactionsView';
 import { EditTransactionDialog } from '../../src/components/EditTransactionDialog';
+import * as dbModule from '../../src/storage/db';
 import type { Transaction } from '../../src/domain/types';
 import {
   createTransactionAtomic,
@@ -435,5 +436,57 @@ describe('AllTransactionsView & EditTransactionDialog', () => {
     const deleted = await verifyDb.get('transactions', 'tx-del');
     verifyDb.close();
     expect(deleted).toBeUndefined();
+  });
+
+  it('surfaces an error toast without unhandled rejection and keeps EditTransactionDialog open when saving fails', async () => {
+    const user = userEvent.setup();
+    const dbName = nextDbName();
+    const db = await openAppDb(dbName);
+    await saveAccount(db, {
+      id: 'acc-1',
+      name: 'SBI Savings',
+      startingBalancePaise: 1_000_000,
+      createdAt: '2026-11-01T08:00:00.000Z',
+      archived: false,
+    });
+    await createTransactionAtomic(
+      db,
+      makeTx({
+        id: 'tx-fail-edit',
+        amountPaise: 50_000,
+        note: 'Edit fail target',
+      })
+    );
+    db.close();
+
+    vi.spyOn(dbModule, 'updateTransactionAtomic').mockRejectedValueOnce(
+      new Error('IDB write failed')
+    );
+
+    render(
+      <AppProvider dbName={dbName}>
+        <AllTxHarness />
+      </AppProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('loading')).not.toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: /Edit fail target/i }));
+    const dialog = screen.getByRole('dialog', { name: 'Edit Transaction' });
+    const amountInput = within(dialog).getByLabelText('Amount (₹)');
+    await user.clear(amountInput);
+    await user.type(amountInput, '999');
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      const toast = screen.getByRole('status');
+      expect(toast).toHaveClass('banner-error');
+      expect(toast).toHaveTextContent(/Could not update this entry/i);
+    });
+
+    const openDialog = screen.getByRole('dialog', { name: 'Edit Transaction' });
+    expect(within(openDialog).getByLabelText('Amount (₹)')).toHaveValue('999');
   });
 });

@@ -135,6 +135,8 @@ function EditTransactionForm({
         note,
       });
       onClose();
+    } catch {
+      // AppContext surfaced an error toast; keep the dialog open with edits intact.
     } finally {
       setSubmitting(false);
     }
@@ -146,6 +148,8 @@ function EditTransactionForm({
     try {
       await onDelete(tx.id);
       onClose();
+    } catch {
+      // AppContext surfaced an error toast; keep the delete confirmation open.
     } finally {
       setSubmitting(false);
     }

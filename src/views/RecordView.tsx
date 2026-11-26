@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Check } from '@phosphor-icons/react';
+import { Banners } from '../components/Banners';
 import { TopBar } from '../components/TopBar';
 import { computeAccountBalancePaise } from '../domain/calculations';
 import { getTodayLocalISO } from '../domain/dates';
@@ -133,7 +134,12 @@ export function RecordView({ preselectedAccountId }: RecordViewProps = {}) {
 
   const handleSaveNewMode = async () => {
     const trimmed = newModeName.trim();
-    if (trimmed) {
+    if (!trimmed) {
+      setAddingPaymentMode(false);
+      setNewModeName('');
+      return;
+    }
+    try {
       const saved = await addCustomPaymentMode(
         type === 'transfer' ? 'transfer' : 'expense',
         trimmed
@@ -145,9 +151,11 @@ export function RecordView({ preselectedAccountId }: RecordViewProps = {}) {
           setExpenseMode(saved);
         }
       }
+      setAddingPaymentMode(false);
+      setNewModeName('');
+    } catch {
+      // AppContext surfaced an error toast; keep the inline input open so user can retry or cancel.
     }
-    setAddingPaymentMode(false);
-    setNewModeName('');
   };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -182,6 +190,8 @@ export function RecordView({ preselectedAccountId }: RecordViewProps = {}) {
       setNote('');
       setError('');
       setDate(getTodayLocalISO());
+    } catch {
+      // AppContext surfaced an error toast; preserve form inputs so user can retry.
     } finally {
       setSubmitting(false);
     }
@@ -199,6 +209,7 @@ export function RecordView({ preselectedAccountId }: RecordViewProps = {}) {
       <TopBar title="Record Entry" />
 
       <div className="phone-scroll">
+        <Banners />
         {activeAccounts.length === 0 ? (
           <section className="card">
             <div className="empty-box">
@@ -405,6 +416,17 @@ export function RecordView({ preselectedAccountId }: RecordViewProps = {}) {
                         placeholder="e.g. NetBanking, Wallet"
                         value={newModeName}
                         onChange={(e) => setNewModeName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            void handleSaveNewMode();
+                          } else if (e.key === 'Escape') {
+                            e.preventDefault();
+                            setAddingPaymentMode(false);
+                            setNewModeName('');
+                          }
+                        }}
                         style={{ flex: 1 }}
                       />
                       <button

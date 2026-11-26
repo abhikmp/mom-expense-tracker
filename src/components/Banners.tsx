@@ -14,6 +14,7 @@ export function Banners() {
     saveBanner,
     statusToast,
     statusToastTone,
+    storageError,
     backupDismissed,
     navigate,
     dismissToast,
@@ -33,7 +34,7 @@ export function Banners() {
 
   return (
     <>
-      {statusToast && (
+      {statusToast ? (
         <div
           className={`banner ${statusToastTone === 'error' ? 'banner-error' : 'banner-success'}`}
           role="status"
@@ -52,6 +53,15 @@ export function Banners() {
             </button>
           </div>
         </div>
+      ) : (
+        storageError && (
+          <div className="banner banner-error" role="status">
+            <div className="banner-copy">
+              <Warning size={18} aria-hidden="true" />
+              <span>{storageError}</span>
+            </div>
+          </div>
+        )
       )}
 
       {saveBanner && (
