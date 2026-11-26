@@ -630,6 +630,8 @@ export function ManageView() {
             </p>
           )}
         </section>
+
+        <p className="app-version num">Version {__APP_VERSION__}</p>
       </div>
 
       <ArchiveConfirmDialog

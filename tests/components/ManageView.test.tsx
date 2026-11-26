@@ -579,4 +579,19 @@ describe('ManageView & AppShell', () => {
     expect(screen.getByRole('dialog', { name: 'Restore Backup?' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 1, name: 'Manage & Settings' })).toBeInTheDocument();
   });
+
+  it('displays the current app version quietly at the bottom of Manage & Settings', async () => {
+    const dbName = nextDbName();
+    render(
+      <AppProvider dbName={dbName}>
+        <ManageHarness />
+      </AppProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('loading')).not.toBeInTheDocument();
+    });
+
+    expect(screen.getByText('Version 1.0.0')).toBeInTheDocument();
+  });
 });
