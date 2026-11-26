@@ -1,0 +1,1137 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Mom's Expense Tracker — Approved UI Reference (Soft Cards)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    /* ==========================================================================
+       APPROVED DESIGN TOKENS — Soft Cards (Light Default + High-Contrast Dark)
+       ========================================================================== */
+    :root,
+    [data-theme="light"] {
+      --outer-backdrop: #E2E8F0;
+      --color-background: #F8FAFC;
+      --color-card: #FFFFFF;
+      --color-muted: #EEF2F6;
+      --color-foreground: #020617;
+      --color-label: #334155;
+      --color-muted-foreground: #475569; /* ~7.4:1 contrast */
+      --color-primary: #0F172A;
+      --color-on-primary: #FFFFFF;
+      --color-primary-hover: #1E293B;
+      --color-secondary: #1E3A8A; /* Trust Navy data bar & active accent */
+      --color-secondary-soft: #DBEAFE;
+      --color-secondary-ink: #1E3A8A;
+      --color-bar-rest: #64748B;
+      --color-border: #E2E8F0;
+      --color-rule: #F1F5F9;
+      --color-control: #CBD5E1;
+
+      --color-positive: #166534;
+      --color-positive-bg: #DCFCE7;
+      --color-positive-ink: #14532D;
+
+      --color-warning-bg: #FFFBEB;
+      --color-warning-border: #FDE68A;
+      --color-warning-ink: #78350F;
+
+      --color-destructive: #DC2626;
+      --color-destructive-bg: #FEE2E2;
+      --color-destructive-ink: #991B1B;
+      --color-destructive-border: #FCA5A5;
+
+      --nav-pill-bg: #DBEAFE;
+      --nav-pill-ink: #1E3A8A;
+      --backdrop-scrim: rgba(2, 6, 23, 0.5);
+
+      --font-sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+      --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+
+      --radius-card: 20px;
+      --radius-control: 14px;
+      --radius-chip: 999px;
+      --space-gap: 16px;
+      --card-pad: 18px;
+      --row-pad-y: 14px;
+    }
+
+    [data-theme="dark"] {
+      --outer-backdrop: #05080F;
+      --color-background: #0B0F17;
+      --color-card: #131A26;
+      --color-muted: #1C2536;
+      --color-foreground: #F8FAFC;
+      --color-label: #E2E8F0;
+      --color-muted-foreground: #B6C2D2; /* ~8.5:1 contrast on #131A26 */
+      --color-primary: #F8FAFC;
+      --color-on-primary: #0F172A;
+      --color-primary-hover: #E2E8F0;
+      --color-secondary: #5B9BF8; /* >6.5:1 on #131A26 */
+      --color-secondary-soft: #172554;
+      --color-secondary-ink: #BFDBFE;
+      --color-bar-rest: #64748B;
+      --color-border: #232D3F;
+      --color-rule: #1B2332;
+      --color-control: #334155;
+
+      --color-positive: #4ADE80;
+      --color-positive-bg: #143322;
+      --color-positive-ink: #86EFAC;
+
+      --color-warning-bg: #261D0B;
+      --color-warning-border: #6B4C11;
+      --color-warning-ink: #FDE68A;
+
+      --color-destructive: #DC2626;
+      --color-destructive-bg: #3B1518;
+      --color-destructive-ink: #FCA5A5;
+      --color-destructive-border: #7F1D1D;
+
+      --nav-pill-bg: #172554;
+      --nav-pill-ink: #93C5FD;
+      --backdrop-scrim: rgba(0, 0, 0, 0.72);
+      color-scheme: dark;
+    }
+
+    *, *::before, *::after {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html {
+      font-family: var(--font-sans);
+      background: var(--outer-backdrop);
+      color: var(--color-foreground);
+      font-size: 16px;
+      line-height: 1.45;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100dvh;
+      background: var(--outer-backdrop);
+      color: var(--color-foreground);
+    }
+
+    button, input, select, textarea {
+      font: inherit;
+      color: inherit;
+    }
+
+    input::placeholder,
+    textarea::placeholder {
+      color: var(--color-muted-foreground);
+      opacity: 0.8;
+    }
+
+    button { touch-action: manipulation; }
+
+    .num {
+      font-variant-numeric: tabular-nums;
+      font-feature-settings: "tnum" 1;
+    }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    /* ==========================================================================
+       PHONE-ONLY ANDROID APP SHELL
+       ========================================================================== */
+    #app {
+      min-height: 100dvh;
+      display: flex;
+      justify-content: center;
+    }
+
+    .phone-frame {
+      width: 100%;
+      max-width: 430px;
+      min-height: 100dvh;
+      background: var(--color-background);
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+
+    @media (min-width: 480px) {
+      #app { padding: 20px 16px; }
+      .phone-frame {
+        min-height: calc(100dvh - 40px);
+        border: 1px solid var(--color-border);
+        border-radius: 28px;
+        overflow: clip;
+      }
+    }
+
+    /* Sticky Android Top App Bar (60px + safe area) */
+    .android-topbar {
+      position: sticky;
+      top: 0;
+      z-index: 30;
+      background: var(--color-card);
+      border-bottom: 1px solid var(--color-border);
+      padding: calc(6px + env(safe-area-inset-top)) 16px 6px;
+      min-height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .topbar-left {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    .topbar-title {
+      margin: 0;
+      font-size: 20px;
+      font-weight: 700;
+      line-height: 1.2;
+      letter-spacing: -0.01em;
+      color: var(--color-foreground);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .topbar-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex: none;
+    }
+
+    .phone-scroll {
+      flex: 1;
+      padding: 16px 16px calc(92px + env(safe-area-inset-bottom));
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-gap);
+    }
+
+    /* ==========================================================================
+       BUTTONS & TOUCH TARGETS (>= 48dp)
+       ========================================================================== */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-height: 48px;
+      padding: 0 16px;
+      border-radius: var(--radius-control);
+      border: 1px solid transparent;
+      font-size: 15px;
+      font-weight: 600;
+      line-height: 1.2;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background-color 140ms var(--ease-out), border-color 140ms var(--ease-out), transform 140ms var(--ease-out);
+    }
+
+    .btn:active,
+    .icon-btn:active,
+    .chip-btn:active,
+    .tx-row-btn:active,
+    .account-row-btn:active,
+    .android-nav-btn:active,
+    .seg-btn:active {
+      transform: scale(0.97);
+    }
+
+    .btn:focus-visible,
+    .icon-btn:focus-visible,
+    .chip-btn:focus-visible,
+    .tx-row-btn:focus-visible,
+    .account-row-btn:focus-visible,
+    .android-nav-btn:focus-visible,
+    .seg-btn:focus-visible {
+      outline: 2px solid var(--color-secondary);
+      outline-offset: 2px;
+    }
+
+    .btn-primary { background: var(--color-primary); color: var(--color-on-primary); }
+    .btn-secondary { background: var(--color-card); color: var(--color-foreground); border-color: var(--color-control); }
+    .btn-ghost { background: transparent; color: var(--color-foreground); padding: 0 10px; }
+    .btn-danger-outline { background: var(--color-card); color: var(--color-destructive-ink); border-color: var(--color-destructive-border); }
+    .btn-danger-fill { background: var(--color-destructive); color: #FFFFFF; }
+    .btn-sm { min-height: 42px; padding: 0 12px; font-size: 14px; }
+
+    .icon-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 48px;
+      min-height: 48px;
+      padding: 0;
+      border-radius: 999px;
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--color-foreground);
+      cursor: pointer;
+      flex: none;
+      transition: background-color 140ms var(--ease-out), transform 140ms var(--ease-out);
+    }
+
+    .icon-btn-outlined {
+      border-color: var(--color-control);
+      background: var(--color-card);
+      border-radius: var(--radius-control);
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+      .btn-primary:hover { background: var(--color-primary-hover); }
+      .btn-secondary:hover, .icon-btn:hover { background: var(--color-muted); }
+      .btn-ghost:hover { background: var(--color-muted); }
+      .tx-row-btn:hover, .account-row-btn:hover { background: var(--color-muted); }
+    }
+
+    /* ==========================================================================
+       CARDS, BANNERS, BALANCES & ROWS
+       ========================================================================== */
+    .card {
+      background: var(--color-card);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-card);
+      padding: var(--card-pad);
+    }
+
+    .card-flush { padding: 0; overflow: hidden; }
+    .card-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+    .card-header-padded { padding: var(--card-pad) var(--card-pad) 12px; margin-bottom: 0; border-bottom: 1px solid var(--color-rule); }
+    .section-title { margin: 0; font-size: 16px; font-weight: 600; line-height: 1.3; color: var(--color-foreground); }
+    .sub-caption { margin: 2px 0 0; font-size: 13px; font-weight: 500; color: var(--color-muted-foreground); line-height: 1.35; }
+
+    .banner { display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: var(--radius-card); border: 1px solid var(--color-border); animation: bannerEnter 180ms var(--ease-out); }
+    .banner-warning { background: var(--color-warning-bg); border-color: var(--color-warning-border); color: var(--color-warning-ink); }
+    .banner-success { background: var(--color-positive-bg); border-color: var(--color-positive-bg); color: var(--color-positive-ink); }
+    .banner-copy { display: flex; align-items: flex-start; gap: 10px; font-size: 14px; font-weight: 500; line-height: 1.4; }
+    .banner-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    @keyframes bannerEnter { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+
+    .balance-label { font-size: 14px; font-weight: 500; color: var(--color-muted-foreground); }
+    .balance-hero { margin: 4px 0 0; font-size: 32px; font-weight: 700; line-height: 1.15; letter-spacing: -0.02em; color: var(--color-foreground); }
+
+    .account-rows { display: flex; flex-direction: column; }
+    .account-row-btn {
+      width: 100%;
+      min-height: 62px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: var(--row-pad-y) var(--card-pad);
+      border: 0;
+      border-bottom: 1px solid var(--color-rule);
+      background: transparent;
+      text-align: left;
+      cursor: pointer;
+      transition: background-color 140ms var(--ease-out), transform 140ms var(--ease-out);
+    }
+    .account-row-btn:last-child { border-bottom: 0; }
+    .account-name { font-size: 16px; font-weight: 600; color: var(--color-foreground); }
+    .account-sub { font-size: 13px; font-weight: 500; color: var(--color-muted-foreground); }
+    .account-right { display: flex; align-items: center; gap: 8px; flex: none; }
+    .account-amount { font-size: 17px; font-weight: 700; color: var(--color-foreground); white-space: nowrap; }
+    .row-chevron { color: var(--color-muted-foreground); display: inline-flex; align-items: center; }
+
+    /* Where You Spent Most */
+    .spend-header { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+    .spend-header-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+    .month-switcher { display: inline-flex; align-items: center; gap: 4px; }
+    .month-label { min-width: 112px; text-align: center; font-size: 14px; font-weight: 600; color: var(--color-foreground); }
+    .spend-list { display: flex; flex-direction: column; gap: 14px; }
+    .spend-top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+    .spend-cat { font-size: 15px; font-weight: 600; color: var(--color-foreground); display: flex; align-items: center; gap: 8px; }
+    .spend-pct { font-size: 13px; font-weight: 500; color: var(--color-muted-foreground); }
+    .spend-val { font-size: 16px; font-weight: 700; color: var(--color-foreground); white-space: nowrap; }
+    .spend-track { height: 8px; width: 100%; border-radius: 999px; background: var(--color-muted); overflow: hidden; }
+    .spend-fill { height: 100%; border-radius: 999px; background: var(--color-bar-rest); transition: width 220ms var(--ease-out); }
+    .spend-fill-lead { background: var(--color-secondary); }
+
+    /* Transaction List Rows */
+    .tx-list { display: flex; flex-direction: column; }
+    .tx-row-btn {
+      width: 100%;
+      min-height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: var(--row-pad-y) var(--card-pad);
+      border: 0;
+      border-bottom: 1px solid var(--color-rule);
+      background: transparent;
+      text-align: left;
+      cursor: pointer;
+      transition: background-color 140ms var(--ease-out), transform 140ms var(--ease-out);
+    }
+    .tx-row-btn:last-child { border-bottom: 0; }
+    .tx-left { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 3px; }
+    .tx-primary { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 16px; font-weight: 600; color: var(--color-foreground); }
+    .tx-meta { font-size: 13px; font-weight: 500; color: var(--color-muted-foreground); line-height: 1.35; }
+    .tx-right { flex: none; text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+    .tx-amount { font-size: 17px; font-weight: 700; color: var(--color-foreground); white-space: nowrap; }
+    .tx-amount-positive { color: var(--color-positive); }
+    .tx-date { font-size: 13px; font-weight: 500; color: var(--color-muted-foreground); white-space: nowrap; }
+
+    .pill { display: inline-flex; align-items: center; min-height: 22px; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; flex: none; }
+    .pill-neutral { background: var(--color-muted); color: var(--color-label); }
+    .pill-positive { background: var(--color-positive-bg); color: var(--color-positive-ink); }
+
+    /* ==========================================================================
+       FORMS, SEGMENTED TOGGLES, CHIPS & MANAGE
+       ========================================================================== */
+    .form-stack { display: flex; flex-direction: column; gap: 16px; }
+    .field-label { display: block; margin-bottom: 8px; font-size: 14px; font-weight: 600; color: var(--color-label); }
+    .field-hint { margin: 6px 0 0; font-size: 13px; color: var(--color-muted-foreground); line-height: 1.4; }
+    .field-error { margin: 6px 0 0; font-size: 14px; font-weight: 600; color: var(--color-destructive-ink); }
+
+    .segmented-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; padding: 4px; border-radius: 999px; background: var(--color-muted); border: 1px solid var(--color-border); }
+    .seg-btn { min-height: 44px; border: 1px solid transparent; border-radius: 999px; background: transparent; color: var(--color-label); font-size: 15px; font-weight: 600; cursor: pointer; transition: background-color 140ms var(--ease-out), color 140ms var(--ease-out), transform 140ms var(--ease-out); }
+    .seg-btn[aria-pressed="true"] { background: var(--color-card); color: var(--color-foreground); border-color: var(--color-control); }
+    .segmented-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+
+    .amount-box { display: flex; align-items: center; gap: 8px; padding: 8px 14px; min-height: 62px; border: 1.5px solid var(--color-control); border-radius: var(--radius-control); background: var(--color-card); }
+    .amount-box:focus-within { border-color: var(--color-secondary); outline: 2px solid var(--color-secondary-soft); }
+    .amount-currency { font-size: 26px; font-weight: 700; color: var(--color-muted-foreground); }
+    .amount-input { width: 100%; border: 0; outline: none; background: transparent; font-size: 28px; font-weight: 700; color: var(--color-foreground); }
+
+    .text-input, .select-input { width: 100%; min-height: 48px; padding: 0 12px; border: 1px solid var(--color-control); border-radius: var(--radius-control); background: var(--color-card); color: var(--color-foreground); font-size: 16px; }
+    .text-input:focus, .select-input:focus { outline: 2px solid var(--color-secondary); outline-offset: 1px; }
+
+    .chip-wrap { display: flex; flex-wrap: wrap; gap: 8px; }
+    .chip-btn { min-height: 48px; padding: 0 16px; border-radius: var(--radius-chip); border: 1px solid var(--color-control); background: var(--color-card); color: var(--color-foreground); font-size: 15px; font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; transition: background-color 140ms var(--ease-out), border-color 140ms var(--ease-out), transform 140ms var(--ease-out); }
+    .chip-btn[aria-pressed="true"] { background: var(--color-primary); border-color: var(--color-primary); color: var(--color-on-primary); font-weight: 600; }
+    .chip-add-btn { border-style: dashed; color: var(--color-secondary-ink); border-color: var(--color-secondary); background: transparent; }
+
+    .filter-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .manage-item { display: flex; flex-direction: column; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--color-rule); }
+    .manage-item:last-child { border-bottom: 0; padding-bottom: 0; }
+    .inline-editor { padding: 12px; border-radius: var(--radius-control); background: var(--color-background); border: 1px solid var(--color-border); display: flex; flex-direction: column; gap: 10px; width: 100%; }
+
+    /* ==========================================================================
+       ANDROID BOTTOM NAVIGATION BAR
+       ========================================================================== */
+    .android-bottom-nav {
+      position: fixed;
+      left: 50%;
+      transform: translateX(-50%);
+      bottom: 0;
+      width: 100%;
+      max-width: 430px;
+      z-index: 40;
+      background: var(--color-card);
+      border-top: 1px solid var(--color-border);
+      padding: 6px 12px calc(6px + env(safe-area-inset-bottom));
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    @media (min-width: 480px) {
+      .android-bottom-nav { position: sticky; left: auto; transform: none; max-width: 100%; }
+      .phone-scroll { padding-bottom: 20px; }
+    }
+
+    .android-nav-btn { min-height: 54px; padding: 4px 8px; border: 0; border-radius: 12px; background: transparent; color: var(--color-muted-foreground); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: 13px; font-weight: 600; cursor: pointer; transition: color 140ms var(--ease-out), transform 140ms var(--ease-out); }
+    .nav-icon-pill { display: inline-flex; align-items: center; justify-content: center; width: 56px; height: 30px; border-radius: 999px; transition: background-color 140ms var(--ease-out), color 140ms var(--ease-out); }
+    .android-nav-btn[aria-current="page"] { color: var(--color-foreground); }
+    .android-nav-btn[aria-current="page"] .nav-icon-pill { background: var(--nav-pill-bg); color: var(--nav-pill-ink); }
+
+    /* ==========================================================================
+       CENTERED DIALOGS
+       ========================================================================== */
+    .overlay-backdrop { position: fixed; inset: 0; z-index: 100; background: var(--backdrop-scrim); display: flex; align-items: center; justify-content: center; padding: 16px; animation: fadeOverlay 160ms var(--ease-out); }
+    .dialog-panel { width: 100%; max-width: 400px; max-height: 86dvh; overflow-y: auto; background: var(--color-card); border: 1px solid var(--color-border); border-radius: 20px; padding: 20px; animation: dialogIn 200ms var(--ease-out); }
+    @keyframes fadeOverlay { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes dialogIn { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+    }
+
+    .row-between { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .row-gap-8 { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .empty-box { padding: 22px 14px; text-align: center; border: 1px dashed var(--color-control); border-radius: var(--radius-control); color: var(--color-muted-foreground); font-size: 15px; }
+  </style>
+</head>
+<body>
+  <main id="app"></main>
+  <script>
+    const TODAY = "2026-11-26";
+    const DEFAULT_CATEGORIES = [
+      { id: "cat-groceries", name: "Groceries", hidden: false, sortOrder: 1, isDefault: true },
+      { id: "cat-bills", name: "Bills", hidden: false, sortOrder: 2, isDefault: true },
+      { id: "cat-medical", name: "Medical", hidden: false, sortOrder: 3, isDefault: true },
+      { id: "cat-household", name: "Household", hidden: false, sortOrder: 4, isDefault: true },
+      { id: "cat-travel", name: "Travel", hidden: false, sortOrder: 5, isDefault: true },
+      { id: "cat-other", name: "Other", hidden: false, sortOrder: 6, isDefault: true }
+    ];
+
+    const state = {
+      theme: "light",
+      view: "home",
+      selectedBankId: null,
+      selectedMonth: "2026-11",
+      lastUsedAccountId: "acc-sbi",
+      backupDueDays: 34,
+      backupDismissed: false,
+      saveBanner: null,
+      statusToast: null,
+      filters: { fromDate: "", toDate: "", typeKey: "all", categoryId: "all" },
+      editingTxId: null,
+      confirmDeleteTxId: null,
+      editingAccountId: null,
+      adjustAccountId: null,
+      archiveConfirmAccountId: null,
+      editingCategoryId: null,
+      restoreConfirmPayload: null,
+      addingPaymentMode: false,
+      newPaymentModeName: "",
+      expensePaymentModes: ["GPay", "Cash", "Card"],
+      transferPaymentModes: ["GPay", "Cash", "Cheque"],
+      depositModes: ["Cash", "Cheque"],
+      recordForm: { type: "expense", direction: "outgoing", amount: "", accountId: "acc-sbi", categoryId: "cat-groceries", expenseMode: "GPay", transferMode: "GPay", depositMode: "Cash", date: TODAY, note: "", error: "" },
+      manageJumpTarget: null,
+      accounts: [
+        { id: "acc-sbi", name: "SBI Savings", startingBalancePaise: 4650000, createdAt: "2026-10-01T09:00:00Z", archived: false },
+        { id: "acc-hdfc", name: "HDFC Bank", startingBalancePaise: 1580000, createdAt: "2026-10-01T09:05:00Z", archived: false },
+        { id: "acc-canara", name: "Canara Pension", startingBalancePaise: 0, createdAt: "2026-09-15T09:00:00Z", archived: true }
+      ],
+      categories: JSON.parse(JSON.stringify(DEFAULT_CATEGORIES)),
+      transactions: [
+        { id: "tx-14", type: "expense", direction: "outgoing", amountPaise: 48500, accountId: "acc-sbi", categoryId: "cat-groceries", mode: "GPay", date: "2026-11-26", note: "Vegetables & milk", createdAt: "2026-11-26T08:15:00Z", updatedAt: "2026-11-26T08:15:00Z" },
+        { id: "tx-13", type: "expense", direction: "outgoing", amountPaise: 124050, accountId: "acc-hdfc", categoryId: "cat-medical", mode: "Card", date: "2026-11-24", note: "Apollo Pharmacy medicines", createdAt: "2026-11-24T17:10:00Z", updatedAt: "2026-11-24T17:10:00Z" },
+        { id: "tx-12", type: "transfer", direction: "outgoing", amountPaise: 200000, accountId: "acc-sbi", categoryId: null, mode: "GPay", date: "2026-11-22", note: "GPay to Ravi (gardener)", createdAt: "2026-11-22T11:30:00Z", updatedAt: "2026-11-22T11:30:00Z" },
+        { id: "tx-11", type: "expense", direction: "outgoing", amountPaise: 189000, accountId: "acc-sbi", categoryId: "cat-bills", mode: "GPay", date: "2026-11-20", note: "Electricity bill BESCOM", createdAt: "2026-11-20T10:00:00Z", updatedAt: "2026-11-20T10:00:00Z" },
+        { id: "tx-10", type: "deposit", direction: "incoming", amountPaise: 800000, accountId: "acc-sbi", categoryId: null, mode: "Cash", date: "2026-11-18", note: "Cash deposit at branch", createdAt: "2026-11-18T12:20:00Z", updatedAt: "2026-11-18T12:20:00Z" },
+        { id: "tx-09", type: "expense", direction: "outgoing", amountPaise: 96500, accountId: "acc-hdfc", categoryId: "cat-groceries", mode: "Card", date: "2026-11-15", note: "More Supermarket rice & oil", createdAt: "2026-11-15T18:00:00Z", updatedAt: "2026-11-15T18:00:00Z" },
+        { id: "tx-08", type: "expense", direction: "outgoing", amountPaise: 62000, accountId: "acc-sbi", categoryId: "cat-household", mode: "GPay", date: "2026-11-12", note: "Gas cylinder refill", createdAt: "2026-11-12T09:45:00Z", updatedAt: "2026-11-12T09:45:00Z" },
+        { id: "tx-07", type: "transfer", direction: "incoming", amountPaise: 500000, accountId: "acc-hdfc", categoryId: null, mode: "GPay", date: "2026-11-10", note: "Monthly allowance from son", createdAt: "2026-11-10T09:00:00Z", updatedAt: "2026-11-10T09:00:00Z" },
+        { id: "tx-06", type: "expense", direction: "outgoing", amountPaise: 34000, accountId: "acc-sbi", categoryId: "cat-travel", mode: "GPay", date: "2026-11-08", note: "Auto to temple & back", createdAt: "2026-11-08T16:15:00Z", updatedAt: "2026-11-08T16:15:00Z" },
+        { id: "tx-05", type: "expense", direction: "outgoing", amountPaise: 74900, accountId: "acc-hdfc", categoryId: "cat-bills", mode: "Card", date: "2026-11-05", note: "Mobile & fiber broadband", createdAt: "2026-11-05T11:00:00Z", updatedAt: "2026-11-05T11:00:00Z" },
+        { id: "tx-04", type: "expense", direction: "outgoing", amountPaise: 51000, accountId: "acc-sbi", categoryId: "cat-other", mode: "GPay", date: "2026-11-02", note: "Temple flowers & sweets", createdAt: "2026-11-02T07:50:00Z", updatedAt: "2026-11-02T07:50:00Z" },
+        { id: "tx-03", type: "expense", direction: "outgoing", amountPaise: 142000, accountId: "acc-sbi", categoryId: "cat-groceries", mode: "Card", date: "2026-10-25", note: "Monthly kirana store", createdAt: "2026-10-25T14:10:00Z", updatedAt: "2026-10-25T14:10:00Z" },
+        { id: "tx-02", type: "expense", direction: "outgoing", amountPaise: 85000, accountId: "acc-hdfc", categoryId: "cat-medical", mode: "GPay", date: "2026-10-18", note: "Routine blood checkup", createdAt: "2026-10-18T10:30:00Z", updatedAt: "2026-10-18T10:30:00Z" },
+        { id: "tx-01", type: "deposit", direction: "incoming", amountPaise: 150000, accountId: "acc-sbi", categoryId: null, mode: "Cheque", date: "2026-10-10", note: "Dividend cheque deposit", createdAt: "2026-10-10T09:15:00Z", updatedAt: "2026-10-10T09:15:00Z" }
+      ]
+    };
+
+    function formatRupees(paise, opts = {}) {
+      const sign = opts.signed ? (paise < 0 ? "-" : "+") : (paise < 0 ? "-" : "");
+      const absPaise = Math.abs(paise);
+      const rupees = absPaise / 100;
+      const hasFraction = absPaise % 100 !== 0;
+      const formatted = new Intl.NumberFormat("en-IN", { minimumFractionDigits: hasFraction ? 2 : 0, maximumFractionDigits: 2 }).format(rupees);
+      return `${sign}₹${formatted}`;
+    }
+    function formatDecimalRupeesPlain(paise) { return (paise / 100).toFixed(2); }
+    function parseRupeesToPaise(raw) {
+      const cleaned = String(raw || "").trim().replace(/,/g, "");
+      if (!/^\d+(\.\d{1,2})?$/.test(cleaned)) return null;
+      const num = Number(cleaned);
+      return Number.isFinite(num) ? Math.round(num * 100) : null;
+    }
+    function computeNetTransactionsPaise(accountId) {
+      let net = 0;
+      for (const tx of state.transactions) {
+        if (tx.accountId !== accountId) continue;
+        net += tx.direction === "incoming" ? tx.amountPaise : -tx.amountPaise;
+      }
+      return net;
+    }
+    function computeAccountBalancePaise(acc) { return acc.startingBalancePaise + computeNetTransactionsPaise(acc.id); }
+    function getActiveAccounts() { return state.accounts.filter((a) => !a.archived); }
+    function computeTotalActiveBalancePaise() { return getActiveAccounts().reduce((s, a) => s + computeAccountBalancePaise(a), 0); }
+    function getCategoryById(id) { return state.categories.find((c) => c.id === id) || null; }
+    function getAccountById(id) { return state.accounts.find((a) => a.id === id) || null; }
+    function formatDateShort(iso) {
+      if (iso === TODAY) return "Today";
+      if (iso === "2026-11-25") return "Yesterday";
+      const [y, m, d] = iso.split("-").map(Number);
+      return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: y !== 2026 ? "numeric" : undefined, timeZone: "UTC" });
+    }
+    function formatMonthTitle(ym) {
+      const [y, m] = ym.split("-").map(Number);
+      return new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString("en-IN", { month: "long", year: "numeric", timeZone: "UTC" });
+    }
+    function shiftMonth(ym, delta) {
+      const [y, m] = ym.split("-").map(Number);
+      const dt = new Date(Date.UTC(y, m - 1 + delta, 1));
+      return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, "0")}`;
+    }
+    function getSortedTransactions(list = state.transactions) {
+      return [...list].sort((a, b) => (a.date !== b.date ? b.date.localeCompare(a.date) : b.createdAt.localeCompare(a.createdAt)));
+    }
+    function computeMonthlyCategorySpending(ym) {
+      const map = new Map(); let total = 0;
+      for (const tx of state.transactions) {
+        if (tx.type !== "expense" || !tx.date.startsWith(ym)) continue;
+        const catId = tx.categoryId || "cat-other";
+        map.set(catId, (map.get(catId) || 0) + tx.amountPaise);
+        total += tx.amountPaise;
+      }
+      const rows = [...map.entries()].map(([catId, amountPaise]) => {
+        const cat = getCategoryById(catId);
+        return { categoryId: catId, name: cat ? cat.name : "Other", amountPaise, sharePct: total > 0 ? Math.round((amountPaise / total) * 100) : 0 };
+      }).sort((a, b) => b.amountPaise - a.amountPaise);
+      return { totalPaise: total, rows };
+    }
+    function getFilteredTransactions() {
+      const f = state.filters;
+      return getSortedTransactions().filter((tx) => {
+        if (f.fromDate && tx.date < f.fromDate) return false;
+        if (f.toDate && tx.date > f.toDate) return false;
+        if (f.typeKey === "expense" && tx.type !== "expense") return false;
+        if (f.typeKey === "deposit" && tx.type !== "deposit") return false;
+        if (f.typeKey === "transfer-outgoing" && !(tx.type === "transfer" && tx.direction === "outgoing")) return false;
+        if (f.typeKey === "transfer-incoming" && !(tx.type === "transfer" && tx.direction === "incoming")) return false;
+        if (f.categoryId !== "all" && (tx.type !== "expense" || tx.categoryId !== f.categoryId)) return false;
+        return true;
+      });
+    }
+    function escapeHtml(str) { return String(str ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+    function csvCell(val) { const s = String(val ?? ""); return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; }
+
+    async function exportCsvFiles(txList, isFiltered, filePrefix = "transactions") {
+      const txHeader = ["Date", "Type", "Direction", "Account", "Category", "Mode", "Amount", "Signed Amount", "Note"];
+      const txRows = txList.map((tx) => {
+        const acc = getAccountById(tx.accountId);
+        const cat = tx.categoryId ? getCategoryById(tx.categoryId) : null;
+        const signedPaise = tx.direction === "incoming" ? tx.amountPaise : -tx.amountPaise;
+        return [tx.date, tx.type, tx.direction, acc ? acc.name : "Unknown", tx.type === "expense" ? (cat ? cat.name : "Other") : "", tx.mode || "", formatDecimalRupeesPlain(tx.amountPaise), formatDecimalRupeesPlain(signedPaise), tx.note || ""].map(csvCell).join(",");
+      });
+      const txCsv = "\uFEFF" + [txHeader.join(","), ...txRows].join("\r\n");
+      const balHeader = ["Account", "Status", "Starting Balance", "Current Balance", "As Of Date"];
+      const balRows = state.accounts.map((acc) => [acc.name, acc.archived ? "Archived" : "Active", formatDecimalRupeesPlain(acc.startingBalancePaise), formatDecimalRupeesPlain(computeAccountBalancePaise(acc)), TODAY].map(csvCell).join(","));
+      const balCsv = "\uFEFF" + [balHeader.join(","), ...balRows].join("\r\n");
+      const txName = isFiltered ? `${filePrefix}-filtered-${TODAY}.csv` : `${filePrefix}-${TODAY}.csv`;
+      const balName = `bank-balances-${TODAY}.csv`;
+      for (const [name, content] of [[txName, txCsv], [balName, balCsv]]) {
+        const blob = new Blob([content], { type: "text/csv;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a"); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      }
+      state.backupDueDays = 0;
+      state.statusToast = `Generated ${txName} and ${balName} (${txList.length} rows).`;
+      renderApp();
+    }
+
+    function downloadJsonBackup() {
+      const payload = { _note: "Monetary fields ending in 'Paise' store integer paise (1 INR = 100 paise) to prevent floating-point rounding drift.", schemaVersion: 1, exportedAt: new Date().toISOString(), accounts: state.accounts, categories: state.categories, expensePaymentModes: state.expensePaymentModes, transferPaymentModes: state.transferPaymentModes, transactions: state.transactions };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a"); a.href = url; a.download = `moms-expenses-backup-${TODAY}.json`; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      state.backupDueDays = 0;
+      state.statusToast = `Downloaded backup JSON (${state.accounts.length} accounts, ${state.transactions.length} entries).`;
+      renderApp();
+    }
+
+    const ICONS = {
+      house: `<svg width="20" height="20" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M152 208V160a8 8 0 0 0-8-8h-32a8 8 0 0 0-8 8v48a8 8 0 0 1-8 8H48a8 8 0 0 1-8-8V115.54a8 8 0 0 1 2.62-5.92l80-75.54a8 8 0 0 1 10.76 0l80 75.54a8 8 0 0 1 2.62 5.92V208a8 8 0 0 1-8 8h-48a8 8 0 0 1-8-8Z"/></svg>`,
+      plusCircle: `<svg width="20" height="20" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="128" cy="128" r="96"/><line x1="88" y1="128" x2="168" y2="128"/><line x1="128" y1="88" x2="128" y2="168"/></svg>`,
+      sliders: `<svg width="20" height="20" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="40" y1="80" x2="216" y2="80"/><line x1="40" y1="176" x2="216" y2="176"/><circle cx="96" cy="80" r="20" fill="var(--color-card)"/><circle cx="160" cy="176" r="20" fill="var(--color-card)"/></svg>`,
+      moon: `<svg width="20" height="20" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M210.69 158.18A96.78 96.78 0 0 1 192 160 96.11 96.11 0 0 1 96 64a96.78 96.78 0 0 1 1.82-18.69A88.06 88.06 0 1 0 210.69 158.18Z"/></svg>`,
+      sun: `<svg width="20" height="20" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="128" cy="128" r="52"/><line x1="128" y1="24" x2="128" y2="48"/><line x1="128" y1="208" x2="128" y2="232"/><line x1="24" y1="128" x2="48" y2="128"/><line x1="208" y1="128" x2="232" y2="128"/><line x1="54.46" y1="54.46" x2="71.43" y2="71.43"/><line x1="184.57" y1="184.57" x2="201.54" y2="201.54"/><line x1="201.54" y1="54.46" x2="184.57" y2="71.43"/><line x1="71.43" y1="184.57" x2="54.46" y2="201.54"/></svg>`,
+      arrowLeft: `<svg width="20" height="20" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="216" y1="128" x2="40" y2="128"/><polyline points="112 56 40 128 112 200"/></svg>`,
+      caretLeft: `<svg width="18" height="18" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="22" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="160 208 80 128 160 48"/></svg>`,
+      caretRight: `<svg width="18" height="18" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="22" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="96 48 176 128 96 208"/></svg>`,
+      share: `<svg width="18" height="18" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M176 104h24a8 8 0 0 1 8 8v96a8 8 0 0 1-8 8H56a8 8 0 0 1-8-8V112a8 8 0 0 1 8-8H80"/><polyline points="88 64 128 24 168 64"/><line x1="128" y1="24" x2="128" y2="144"/></svg>`,
+      check: `<svg width="18" height="18" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="22" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="40 144 96 200 224 72"/></svg>`,
+      warning: `<svg width="18" height="18" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M114.15 39.89 25.88 192.11A16 16 0 0 0 39.73 216H216.27a16 16 0 0 0 13.85-23.89L141.85 39.89a16 16 0 0 0-27.7 0Z"/><line x1="128" y1="104" x2="128" y2="144"/><circle cx="128" cy="176" r="10" fill="currentColor"/></svg>`
+    };
+
+    function renderTopBar(titleText, showBack = false, extraRightHtml = "") {
+      const isDark = state.theme === "dark";
+      return `
+        <header class="android-topbar">
+          <div class="topbar-left">
+            ${showBack ? `<button type="button" class="icon-btn" data-action="go-home" aria-label="Back to Home">${ICONS.arrowLeft}</button>` : ""}
+            <h1 class="topbar-title">${escapeHtml(titleText)}</h1>
+          </div>
+          <div class="topbar-actions">
+            ${extraRightHtml}
+            <button type="button" class="icon-btn" data-action="toggle-theme" aria-pressed="${isDark}" aria-label="${isDark ? "Switch to light theme" : "Switch to dark theme"}" title="${isDark ? "Light theme" : "Dark theme"}">
+              ${isDark ? ICONS.sun : ICONS.moon}
+            </button>
+          </div>
+        </header>
+      `;
+    }
+
+    function txTitleAndBadge(tx) {
+      const cat = tx.categoryId ? getCategoryById(tx.categoryId) : null;
+      if (tx.type === "expense") return { title: cat ? cat.name : "Other", badge: null };
+      if (tx.type === "deposit") return { title: "Cash Deposit", badge: `<span class="pill pill-positive">Deposit</span>` };
+      return { title: tx.direction === "incoming" ? "Transfer In" : "Transfer Out", badge: `<span class="pill pill-neutral">${tx.direction === "incoming" ? "Incoming" : "Outgoing"}</span>` };
+    }
+
+    function renderTxRow(tx, opts = {}) {
+      const acc = getAccountById(tx.accountId);
+      const accLabel = acc ? `${acc.name}${acc.archived ? " (Archived)" : ""}` : "Unknown account";
+      const { title, badge } = txTitleAndBadge(tx);
+      const signedPaise = tx.direction === "incoming" ? tx.amountPaise : -tx.amountPaise;
+      const isPositive = tx.direction === "incoming";
+      const subParts = [];
+      if (!opts.hideAccount) subParts.push(accLabel);
+      if (tx.mode) subParts.push(tx.mode);
+      if (tx.note) subParts.push(tx.note);
+
+      return `
+        <button type="button" class="tx-row-btn" data-action="edit-tx" data-id="${escapeHtml(tx.id)}">
+          <span class="tx-left">
+            <span class="tx-primary"><span>${escapeHtml(title)}</span>${badge || ""}</span>
+            ${subParts.length ? `<span class="tx-meta">${escapeHtml(subParts.join(" · "))}</span>` : ""}
+          </span>
+          <span class="tx-right">
+            <span class="tx-amount num ${isPositive ? "tx-amount-positive" : ""}">${escapeHtml(formatRupees(signedPaise, { signed: true }))}</span>
+            <span class="tx-date num">${escapeHtml(formatDateShort(tx.date))}</span>
+          </span>
+        </button>
+      `;
+    }
+
+    function renderBanners() {
+      let html = "";
+      if (state.statusToast) html += `<div class="banner banner-success" role="status"><div class="banner-copy">${ICONS.check}<span>${escapeHtml(state.statusToast)}</span></div><div class="banner-actions"><button type="button" class="btn btn-secondary btn-sm" data-action="dismiss-toast">Close</button></div></div>`;
+      if (state.saveBanner) html += `<div class="banner banner-success" role="status"><div class="banner-copy">${ICONS.check}<span>${escapeHtml(state.saveBanner)}</span></div><div class="banner-actions"><button type="button" class="btn btn-primary btn-sm" data-action="go-record">+ Add another</button><button type="button" class="btn btn-secondary btn-sm" data-action="dismiss-save">Dismiss</button></div></div>`;
+      if (state.view === "home" && state.backupDueDays >= 30 && !state.backupDismissed && getActiveAccounts().length > 0) html += `<div class="banner banner-warning" role="region" aria-label="Backup reminder"><div class="banner-copy">${ICONS.warning}<span>It has been ${state.backupDueDays} days since your last backup or spreadsheet export.</span></div><div class="banner-actions"><button type="button" class="btn btn-secondary btn-sm" data-action="go-manage-backup">Back Up Now</button><button type="button" class="btn btn-ghost btn-sm" data-action="dismiss-backup">Later</button></div></div>`;
+      return html;
+    }
+
+    function renderHome() {
+      const activeAccounts = getActiveAccounts();
+      const totalPaise = computeTotalActiveBalancePaise();
+      const spending = computeMonthlyCategorySpending(state.selectedMonth);
+      const recent10 = getSortedTransactions().slice(0, 10);
+      const topBar = renderTopBar("Expenses", false, `<button type="button" class="btn btn-secondary btn-sm" data-action="go-manage">${ICONS.sliders}<span>Manage</span></button>`);
+
+      if (activeAccounts.length === 0) {
+        return { topBar, body: `${renderBanners()}<section class="card" aria-label="Welcome setup"><div class="empty-box"><p style="margin:0 0 10px; font-size:16px; color:var(--color-foreground); font-weight:600;">No bank accounts added yet</p><p style="margin:0 0 16px;">Add your first bank account and current balance to start tracking expenses.</p><button type="button" class="btn btn-primary" data-action="go-manage-accounts">+ Add Your First Bank Account</button></div></section>` };
+      }
+
+      return {
+        topBar,
+        body: `
+          ${renderBanners()}
+          <section class="card card-flush" aria-label="Total and Bank Account Balances">
+            <div class="card-header card-header-padded">
+              <div>
+                <div class="balance-label">Total Balance</div>
+                <div class="balance-hero num">${escapeHtml(formatRupees(totalPaise))}</div>
+              </div>
+              <button type="button" class="btn btn-secondary btn-sm" data-action="go-manage-accounts">+ Add / Edit</button>
+            </div>
+            <div class="account-rows">
+              ${activeAccounts.map((acc) => `
+                <button type="button" class="account-row-btn" data-action="open-bank" data-id="${escapeHtml(acc.id)}" aria-label="View ${escapeHtml(acc.name)} transactions">
+                  <div><div class="account-name">${escapeHtml(acc.name)}</div><div class="account-sub">Available balance</div></div>
+                  <span class="account-right"><span class="account-amount num">${escapeHtml(formatRupees(computeAccountBalancePaise(acc)))}</span><span class="row-chevron" aria-hidden="true">${ICONS.caretRight}</span></span>
+                </button>
+              `).join("")}
+            </div>
+          </section>
+
+          <section class="card" aria-label="Where You Spent Most">
+            <div class="spend-header">
+              <div class="spend-header-row">
+                <h2 class="section-title">Where You Spent Most</h2>
+                <div class="month-switcher">
+                  <button type="button" class="icon-btn icon-btn-outlined" style="min-width:44px; min-height:44px;" data-action="prev-month" aria-label="Previous month">${ICONS.caretLeft}</button>
+                  <span class="month-label">${escapeHtml(formatMonthTitle(state.selectedMonth))}</span>
+                  <button type="button" class="icon-btn icon-btn-outlined" style="min-width:44px; min-height:44px;" data-action="next-month" aria-label="Next month">${ICONS.caretRight}</button>
+                </div>
+              </div>
+              <p class="sub-caption num">${spending.totalPaise > 0 ? `${escapeHtml(formatRupees(spending.totalPaise))} spent in ${escapeHtml(formatMonthTitle(state.selectedMonth))}` : `No expenses in ${escapeHtml(formatMonthTitle(state.selectedMonth))}`}</p>
+            </div>
+            ${spending.rows.length === 0 ? `<div class="empty-box">No expenses recorded in ${escapeHtml(formatMonthTitle(state.selectedMonth))}.</div>` : `
+              <div class="spend-list">
+                ${spending.rows.map((row, idx) => {
+                  const barWidth = Math.max(4, Math.round((row.amountPaise / spending.rows[0].amountPaise) * 100));
+                  return `
+                    <div style="display:flex; flex-direction:column; gap:6px;">
+                      <div class="spend-top"><span class="spend-cat"><span>${escapeHtml(row.name)}</span><span class="spend-pct num">${row.sharePct}%</span></span><span class="spend-val num">${escapeHtml(formatRupees(row.amountPaise))}</span></div>
+                      <div class="spend-track" aria-hidden="true"><div class="spend-fill ${idx === 0 ? "spend-fill-lead" : ""}" style="width:${barWidth}%"></div></div>
+                    </div>
+                  `;
+                }).join("")}
+              </div>
+            `}
+          </section>
+
+          <section class="card card-flush" aria-label="Last 10 Transactions">
+            <div class="card-header card-header-padded">
+              <div><h2 class="section-title">Last 10 Transactions</h2><p class="sub-caption">Tap any entry to edit or delete</p></div>
+              <button type="button" class="btn btn-secondary btn-sm" data-action="go-all">Show All →</button>
+            </div>
+            ${recent10.length === 0 ? `<div style="padding:16px;"><div class="empty-box">No transactions yet. Tap Record below to add one.</div></div>` : `<div class="tx-list">${recent10.map(renderTxRow).join("")}</div>`}
+          </section>
+        `
+      };
+    }
+
+    function renderBankTransactions() {
+      const acc = getAccountById(state.selectedBankId);
+      if (!acc) return renderHome();
+      const bankTxs = getSortedTransactions().filter((t) => t.accountId === acc.id);
+      const topBar = renderTopBar(acc.name, true, `<button type="button" class="btn btn-primary btn-sm" data-action="export-bank" data-id="${escapeHtml(acc.id)}">${ICONS.share}<span>Export (${bankTxs.length})</span></button>`);
+      return {
+        topBar,
+        body: `
+          ${renderBanners()}
+          <section class="card" aria-label="${escapeHtml(acc.name)} Summary">
+            <div class="row-between" style="align-items:flex-start;">
+              <div><div class="balance-label">Current Balance</div><div class="balance-hero num">${escapeHtml(formatRupees(computeAccountBalancePaise(acc)))}</div><p class="sub-caption num" style="margin-top:6px;">${bankTxs.length} ${bankTxs.length === 1 ? "transaction" : "transactions"} recorded</p></div>
+              <button type="button" class="btn btn-secondary btn-sm" data-action="record-for-bank" data-id="${escapeHtml(acc.id)}">+ Record</button>
+            </div>
+          </section>
+          <section class="card card-flush" aria-label="${escapeHtml(acc.name)} Transactions">
+            <div class="card-header card-header-padded"><div><h2 class="section-title">Account History</h2><p class="sub-caption">Tap any entry to edit or delete</p></div></div>
+            ${bankTxs.length === 0 ? `<div style="padding:16px;"><div class="empty-box">No transactions recorded for ${escapeHtml(acc.name)} yet.</div></div>` : `<div class="tx-list">${bankTxs.map((tx) => renderTxRow(tx, { hideAccount: true })).join("")}</div>`}
+          </section>
+        `
+      };
+    }
+
+    function renderRecord() {
+      const topBar = renderTopBar("Record Entry", false);
+      const activeAccounts = getActiveAccounts();
+      const visibleCategories = state.categories.filter((c) => !c.hidden);
+      const f = state.recordForm;
+      if (activeAccounts.length === 0) return { topBar, body: `<section class="card"><div class="empty-box"><p style="margin:0 0 10px; font-weight:600; color:var(--color-foreground);">Add a bank account first</p><p style="margin:0 0 16px;">You need at least one active bank account before recording an entry.</p><button type="button" class="btn btn-primary" data-action="go-manage-accounts">+ Add Bank Account</button></div></section>` };
+      if (!activeAccounts.some((a) => a.id === f.accountId)) f.accountId = activeAccounts.some((a) => a.id === state.lastUsedAccountId) ? state.lastUsedAccountId : activeAccounts[0].id;
+      const typeMicrocopy = f.type === "expense" ? "Use Expense for groceries, bills, pharmacy, and shop payments via Google Pay / UPI." : f.type === "deposit" ? "Use Deposit when adding cash or cheque into this bank account." : "Use Transfer when sending money to someone or receiving money from someone.";
+
+      return {
+        topBar,
+        body: `
+          <form class="card form-stack" id="record-form" novalidate>
+            <div>
+              <span class="field-label">What kind of entry?</span>
+              <div class="segmented-3" role="group" aria-label="Transaction Type">
+                <button type="button" class="seg-btn" data-action="rec-type" data-type="expense" aria-pressed="${f.type === "expense"}">Expense</button>
+                <button type="button" class="seg-btn" data-action="rec-type" data-type="deposit" aria-pressed="${f.type === "deposit"}">Deposit</button>
+                <button type="button" class="seg-btn" data-action="rec-type" data-type="transfer" aria-pressed="${f.type === "transfer"}">Transfer</button>
+              </div>
+              <p class="field-hint">${escapeHtml(typeMicrocopy)}</p>
+            </div>
+            ${f.type === "transfer" ? `<div><span class="field-label">Transfer Direction</span><div class="segmented-2" role="group" aria-label="Transfer Direction"><button type="button" class="chip-btn" data-action="rec-dir" data-dir="outgoing" aria-pressed="${f.direction === "outgoing"}">Outgoing (−)</button><button type="button" class="chip-btn" data-action="rec-dir" data-dir="incoming" aria-pressed="${f.direction === "incoming"}">Incoming (+)</button></div></div>` : ""}
+            <div>
+              <label class="field-label" for="rec-amount-input">Amount (Rupees)</label>
+              <div class="amount-box"><span class="amount-currency" aria-hidden="true">₹</span><input id="rec-amount-input" class="amount-input num" type="text" inputmode="decimal" placeholder="0" value="${escapeHtml(f.amount)}" autocomplete="off" /></div>
+              ${f.error ? `<p class="field-error" role="alert">${escapeHtml(f.error)}</p>` : ""}
+            </div>
+            <div>
+              <span class="field-label">Bank Account</span>
+              <div class="chip-wrap" role="group" aria-label="Bank Account">
+                ${activeAccounts.map((a) => `<button type="button" class="chip-btn" data-action="rec-account" data-id="${escapeHtml(a.id)}" aria-pressed="${f.accountId === a.id}"><span>${escapeHtml(a.name)}</span><span class="num" style="opacity:0.85; font-size:13px;">(${escapeHtml(formatRupees(computeAccountBalancePaise(a)))})</span></button>`).join("")}
+              </div>
+            </div>
+            ${f.type === "expense" ? `<div><span class="field-label">Category</span><div class="chip-wrap" role="group" aria-label="Expense Category">${visibleCategories.map((c) => `<button type="button" class="chip-btn" data-action="rec-cat" data-id="${escapeHtml(c.id)}" aria-pressed="${f.categoryId === c.id}">${escapeHtml(c.name)}</button>`).join("")}</div></div>` : ""}
+            ${f.type === "deposit" ? `<div><span class="field-label">Mode of Deposit</span><div class="chip-wrap" role="group" aria-label="Mode of Deposit">${state.depositModes.map((mode) => `<button type="button" class="chip-btn" data-action="rec-dep-mode" data-mode="${escapeHtml(mode)}" aria-pressed="${f.depositMode === mode}">${escapeHtml(mode)}</button>`).join("")}</div></div>` : `<div><span class="field-label">Payment Mode</span><div class="chip-wrap" role="group" aria-label="Payment Mode">${(f.type === "transfer" ? state.transferPaymentModes : state.expensePaymentModes).map((mode) => `<button type="button" class="chip-btn" data-action="rec-pay-mode" data-mode="${escapeHtml(mode)}" aria-pressed="${(f.type === "transfer" ? f.transferMode : f.expenseMode) === mode}">${escapeHtml(mode)}</button>`).join("")}<button type="button" class="chip-btn chip-add-btn" data-action="toggle-add-pay-mode" aria-expanded="${state.addingPaymentMode}">+ Add New</button></div>${state.addingPaymentMode ? `<div class="inline-editor" style="margin-top:10px;"><label class="field-label" for="new-pay-mode-input">New Payment Mode</label><div class="row-gap-8"><input id="new-pay-mode-input" class="text-input" type="text" placeholder="e.g. NetBanking, Wallet" value="${escapeHtml(state.newPaymentModeName)}" style="flex:1;" /><button type="button" class="btn btn-primary btn-sm" data-action="save-new-pay-mode">Add</button><button type="button" class="btn btn-secondary btn-sm" data-action="cancel-new-pay-mode">Cancel</button></div></div>` : ""}</div>`}
+            <div><label class="field-label" for="rec-date-input">Date</label><input id="rec-date-input" class="text-input num" type="date" value="${escapeHtml(f.date)}" /></div>
+            <div><label class="field-label" for="rec-note-input">Note (optional)</label><input id="rec-note-input" class="text-input" type="text" placeholder="e.g. Pharmacy or GPay to Ravi" value="${escapeHtml(f.note)}" /></div>
+            <button type="submit" class="btn btn-primary" style="width:100%; min-height:52px; font-size:16px;">${ICONS.check}<span>Save ${f.type === "expense" ? "Expense" : f.type === "deposit" ? "Deposit" : "Transfer"}</span></button>
+          </form>
+        `
+      };
+    }
+
+    function renderTxEditFields(tx) {
+      const txAccounts = state.accounts.filter((a) => !a.archived || a.id === tx.accountId);
+      const txCats = state.categories.filter((c) => !c.hidden || c.id === tx.categoryId);
+      const modeOpts = tx.type === "deposit" ? state.depositModes : tx.type === "transfer" ? state.transferPaymentModes : state.expensePaymentModes;
+      return `
+        <form id="edit-tx-form" class="form-stack" data-tx-id="${escapeHtml(tx.id)}">
+          <div class="filter-grid">
+            <div><label class="field-label" for="edit-tx-type">Type</label><select id="edit-tx-type" class="select-input"><option value="expense" ${tx.type === "expense" ? "selected" : ""}>Expense</option><option value="deposit" ${tx.type === "deposit" ? "selected" : ""}>Deposit</option><option value="transfer-outgoing" ${tx.type === "transfer" && tx.direction === "outgoing" ? "selected" : ""}>Transfer - Outgoing</option><option value="transfer-incoming" ${tx.type === "transfer" && tx.direction === "incoming" ? "selected" : ""}>Transfer - Incoming</option></select></div>
+            <div><label class="field-label" for="edit-tx-amount">Amount (₹)</label><input id="edit-tx-amount" class="text-input num" type="text" inputmode="decimal" value="${escapeHtml(formatDecimalRupeesPlain(tx.amountPaise))}" /></div>
+          </div>
+          <div><label class="field-label" for="edit-tx-account">Bank Account</label><select id="edit-tx-account" class="select-input">${txAccounts.map((a) => `<option value="${escapeHtml(a.id)}" ${tx.accountId === a.id ? "selected" : ""}>${escapeHtml(a.name)}${a.archived ? " (Archived)" : ""}</option>`).join("")}</select></div>
+          <div id="edit-tx-cat-wrap" style="${tx.type === "expense" ? "" : "display:none;"}"><label class="field-label" for="edit-tx-cat">Category</label><select id="edit-tx-cat" class="select-input">${txCats.map((c) => `<option value="${escapeHtml(c.id)}" ${tx.categoryId === c.id ? "selected" : ""}>${escapeHtml(c.name)}${c.hidden ? " (Hidden)" : ""}</option>`).join("")}</select></div>
+          <div><label class="field-label" for="edit-tx-mode">${tx.type === "deposit" ? "Mode of Deposit" : "Payment Mode"}</label><select id="edit-tx-mode" class="select-input">${modeOpts.map((m) => `<option value="${escapeHtml(m)}" ${tx.mode === m ? "selected" : ""}>${escapeHtml(m)}</option>`).join("")}</select></div>
+          <div class="filter-grid">
+            <div><label class="field-label" for="edit-tx-date">Date</label><input id="edit-tx-date" class="text-input num" type="date" value="${escapeHtml(tx.date)}" /></div>
+            <div><label class="field-label" for="edit-tx-note">Note</label><input id="edit-tx-note" class="text-input" type="text" value="${escapeHtml(tx.note || "")}" /></div>
+          </div>
+          <div class="row-between" style="flex-wrap:wrap;"><button type="button" class="btn btn-danger-outline btn-sm" data-action="ask-delete-tx" data-id="${escapeHtml(tx.id)}">Delete</button><div class="row-gap-8"><button type="button" class="btn btn-secondary btn-sm" data-action="close-edit-tx">Cancel</button><button type="submit" class="btn btn-primary btn-sm">Save</button></div></div>
+        </form>
+      `;
+    }
+
+    function renderAllTransactions() {
+      const filtered = getFilteredTransactions();
+      const f = state.filters;
+      const topBar = renderTopBar("All Transactions", true, `<button type="button" class="btn btn-primary btn-sm" data-action="export-filtered">${ICONS.share}<span>Export (${filtered.length})</span></button>`);
+      return {
+        topBar,
+        body: `
+          ${renderBanners()}
+          <section class="card" aria-label="Transaction filters">
+            <div class="row-between" style="margin-bottom:10px;"><span class="sub-caption num" style="margin:0;">Showing ${filtered.length} of ${state.transactions.length} entries</span>${(f.fromDate || f.toDate || f.typeKey !== "all" || f.categoryId !== "all") ? `<button type="button" class="btn btn-secondary btn-sm" data-action="reset-filters">Clear</button>` : ""}</div>
+            <div class="filter-grid">
+              <div><label class="field-label" for="flt-from">From Date</label><input id="flt-from" class="text-input num" type="date" value="${escapeHtml(f.fromDate)}" /></div>
+              <div><label class="field-label" for="flt-to">To Date</label><input id="flt-to" class="text-input num" type="date" value="${escapeHtml(f.toDate)}" /></div>
+              <div><label class="field-label" for="flt-type">Type</label><select id="flt-type" class="select-input"><option value="all" ${f.typeKey === "all" ? "selected" : ""}>All Types</option><option value="expense" ${f.typeKey === "expense" ? "selected" : ""}>Expense</option><option value="deposit" ${f.typeKey === "deposit" ? "selected" : ""}>Deposit</option><option value="transfer-outgoing" ${f.typeKey === "transfer-outgoing" ? "selected" : ""}>Transfer - Outgoing</option><option value="transfer-incoming" ${f.typeKey === "transfer-incoming" ? "selected" : ""}>Transfer - Incoming</option></select></div>
+              <div><label class="field-label" for="flt-cat">Category</label><select id="flt-cat" class="select-input"><option value="all" ${f.categoryId === "all" ? "selected" : ""}>All Categories</option>${state.categories.map((c) => `<option value="${escapeHtml(c.id)}" ${f.categoryId === c.id ? "selected" : ""}>${escapeHtml(c.name)}${c.hidden ? " (Hidden)" : ""}</option>`).join("")}</select></div>
+            </div>
+          </section>
+          <section class="card card-flush" aria-label="Transaction history">${filtered.length === 0 ? `<div style="padding:16px;"><div class="empty-box">No transactions match these filters.</div></div>` : `<div class="tx-list">${filtered.map((tx) => renderTxRow(tx)).join("")}</div>`}</section>
+        `
+      };
+    }
+
+    function renderManage() {
+      const topBar = renderTopBar("Manage & Settings", true);
+      const isDark = state.theme === "dark";
+      return {
+        topBar,
+        body: `
+          ${renderBanners()}
+          <section class="card" aria-label="Appearance"><div class="row-between"><div><h2 class="section-title">Appearance</h2><p class="sub-caption">Switch between Light and Dark theme</p></div><button type="button" class="btn btn-secondary btn-sm" data-action="toggle-theme" aria-pressed="${isDark}">${isDark ? ICONS.sun : ICONS.moon}<span>${isDark ? "Dark On" : "Light On"}</span></button></div></section>
+          <section id="sec-accounts" class="card form-stack" aria-label="Bank Accounts">
+            <div><h2 class="section-title">Bank Accounts</h2><p class="sub-caption">Add accounts, rename, adjust balance, or archive old ones.</p></div>
+            <form id="add-account-form" class="inline-editor"><div style="font-size:14px; font-weight:600;">Add New Bank Account</div><div class="filter-grid"><div><label class="field-label" for="new-acc-name">Account Name</label><input id="new-acc-name" class="text-input" type="text" placeholder="e.g. ICICI Bank" required /></div><div><label class="field-label" for="new-acc-bal">Current Balance (₹)</label><input id="new-acc-bal" class="text-input num" type="text" inputmode="decimal" placeholder="0" required /></div></div><button type="submit" class="btn btn-primary btn-sm">+ Add Bank Account</button></form>
+            <div>${state.accounts.map((acc) => { const bal = computeAccountBalancePaise(acc); return `<div class="manage-item"><div class="row-between"><div><div class="row-gap-8"><span class="account-name">${escapeHtml(acc.name)}</span>${acc.archived ? `<span class="pill pill-neutral">Archived</span>` : `<span class="pill pill-positive">Active</span>`}</div><div class="account-sub num">Balance: ${escapeHtml(formatRupees(bal))}</div></div></div><div class="row-gap-8"><button type="button" class="btn btn-secondary btn-sm" data-action="open-rename-acc" data-id="${escapeHtml(acc.id)}">Rename</button><button type="button" class="btn btn-secondary btn-sm" data-action="open-adjust-acc" data-id="${escapeHtml(acc.id)}">Adjust Balance</button><button type="button" class="btn btn-secondary btn-sm" data-action="toggle-archive-acc" data-id="${escapeHtml(acc.id)}">${acc.archived ? "Unarchive" : "Archive"}</button></div>${state.editingAccountId === acc.id ? `<form class="inline-editor" id="rename-acc-form" data-id="${escapeHtml(acc.id)}"><label class="field-label" for="rename-acc-input">New Account Name</label><div class="row-gap-8"><input id="rename-acc-input" class="text-input" type="text" value="${escapeHtml(acc.name)}" style="flex:1;" /><button type="submit" class="btn btn-primary btn-sm">Save</button><button type="button" class="btn btn-secondary btn-sm" data-action="cancel-acc-edit">Cancel</button></div></form>` : ""}${state.adjustAccountId === acc.id ? `<form class="inline-editor" id="adjust-acc-form" data-id="${escapeHtml(acc.id)}"><label class="field-label" for="adjust-acc-input">Desired Balance (₹)</label><div class="row-gap-8"><input id="adjust-acc-input" class="text-input num" type="text" inputmode="decimal" value="${escapeHtml(formatDecimalRupeesPlain(bal))}" style="flex:1;" /><button type="submit" class="btn btn-primary btn-sm">Update</button><button type="button" class="btn btn-secondary btn-sm" data-action="cancel-acc-edit">Cancel</button></div></form>` : ""}</div>`; }).join("")}</div>
+          </section>
+          <section id="sec-categories" class="card form-stack" aria-label="Expense Categories">
+            <div><h2 class="section-title">Expense Categories</h2><p class="sub-caption">Rename updates past records automatically. Hide removes from Record.</p></div>
+            <form id="add-cat-form" class="row-gap-8"><label class="sr-only" for="new-cat-name">New Category Name</label><input id="new-cat-name" class="text-input" type="text" placeholder="New category (e.g. Gifts)" style="flex:1;" required /><button type="submit" class="btn btn-primary btn-sm">+ Add</button></form>
+            <div>${state.categories.map((c) => `<div class="manage-item"><div class="row-between"><div class="row-gap-8"><span class="account-name">${escapeHtml(c.name)}</span>${c.hidden ? `<span class="pill pill-neutral">Hidden</span>` : ""}</div><div class="row-gap-8"><button type="button" class="btn btn-secondary btn-sm" data-action="open-rename-cat" data-id="${escapeHtml(c.id)}">Rename</button><button type="button" class="btn btn-secondary btn-sm" data-action="toggle-hide-cat" data-id="${escapeHtml(c.id)}">${c.hidden ? "Show" : "Hide"}</button></div></div>${state.editingCategoryId === c.id ? `<form class="inline-editor" id="rename-cat-form" data-id="${escapeHtml(c.id)}"><label class="field-label" for="rename-cat-input">Category Name</label><div class="row-gap-8"><input id="rename-cat-input" class="text-input" type="text" value="${escapeHtml(c.name)}" style="flex:1;" /><button type="submit" class="btn btn-primary btn-sm">Save</button><button type="button" class="btn btn-secondary btn-sm" data-action="cancel-cat-edit">Cancel</button></div></form>` : ""}</div>`).join("")}</div>
+          </section>
+          <section id="sec-export" class="card form-stack" aria-label="Export All Spreadsheets"><div><h2 class="section-title">Spreadsheet Export (.csv)</h2><p class="sub-caption num">${state.transactions.length} transactions · ${state.accounts.length} accounts</p></div><button type="button" class="btn btn-primary" data-action="export-all">${ICONS.share}<span>Export All (.csv)</span></button></section>
+          <section id="sec-backup" class="card form-stack" aria-label="Backup and Restore"><div><h2 class="section-title">Backup & Restore (.json)</h2><p class="sub-caption">Save a complete backup file on this phone or restore from a saved JSON file.</p></div><div class="filter-grid"><button type="button" class="btn btn-secondary btn-sm" data-action="download-backup">Download Backup</button><label class="btn btn-secondary btn-sm" style="cursor:pointer;"><span>Restore Backup</span><input id="restore-file-input" type="file" accept=".json,application/json" class="sr-only" /></label></div></section>
+        `
+      };
+    }
+
+    function renderOverlay() {
+      const wrap = (title, bodyHtml) => `<div class="overlay-backdrop" data-overlay-backdrop="true" role="dialog" aria-modal="true" aria-label="${escapeHtml(title)}"><div class="dialog-panel"><h2 class="section-title" style="margin:0 0 14px;">${escapeHtml(title)}</h2>${bodyHtml}</div></div>`;
+      if (state.confirmDeleteTxId) {
+        const tx = state.transactions.find((t) => t.id === state.confirmDeleteTxId);
+        if (tx) return wrap("Delete Transaction?", `<p style="margin:0 0 16px; color:var(--color-muted-foreground);">Remove <strong style="color:var(--color-foreground);">${escapeHtml(txTitleAndBadge(tx).title)}</strong> of <strong class="num" style="color:var(--color-foreground);">${escapeHtml(formatRupees(tx.amountPaise))}</strong> on ${escapeHtml(formatDateShort(tx.date))}? Balances update immediately.</p><div class="row-between"><button type="button" class="btn btn-secondary" data-action="cancel-delete-tx">Keep Entry</button><button type="button" class="btn btn-danger-fill" data-action="confirm-delete-tx" data-id="${escapeHtml(tx.id)}">Delete Entry</button></div>`);
+      }
+      if (state.editingTxId) {
+        const tx = state.transactions.find((t) => t.id === state.editingTxId);
+        if (tx) return wrap("Edit Transaction", renderTxEditFields(tx));
+      }
+      if (state.archiveConfirmAccountId) {
+        const acc = getAccountById(state.archiveConfirmAccountId);
+        if (acc) return wrap("Archive Account With Balance?", `<div class="banner banner-warning" style="margin-bottom:16px;"><div class="banner-copy">${ICONS.warning}<span><strong>${escapeHtml(acc.name)}</strong> still has <strong class="num">${escapeHtml(formatRupees(computeAccountBalancePaise(acc)))}</strong> remaining. Archiving hides it from Home & Total Balance.</span></div></div><div class="row-between"><button type="button" class="btn btn-secondary" data-action="cancel-archive-acc">Cancel</button><button type="button" class="btn btn-primary" data-action="confirm-archive-acc" data-id="${escapeHtml(acc.id)}">Archive Anyway</button></div>`);
+      }
+      if (state.restoreConfirmPayload) {
+        const p = state.restoreConfirmPayload;
+        return wrap("Restore Backup?", `<p style="margin:0 0 12px; color:var(--color-muted-foreground);">Replace on-device data with:</p><div class="card" style="background:var(--color-background); margin-bottom:16px; padding:12px 14px;"><div class="num" style="font-size:15px; font-weight:600;">${p.accounts.length} Accounts · ${p.categories.length} Categories · ${p.transactions.length} Entries</div></div><div class="row-between"><button type="button" class="btn btn-secondary" data-action="cancel-restore">Cancel</button><button type="button" class="btn btn-danger-fill" data-action="confirm-restore">Restore Now</button></div>`);
+      }
+      return "";
+    }
+
+    const root = document.getElementById("app");
+    function renderApp() {
+      document.documentElement.setAttribute("data-theme", state.theme);
+      let screen;
+      if (state.view === "home") screen = renderHome();
+      else if (state.view === "record") screen = renderRecord();
+      else if (state.view === "bank-tx") screen = renderBankTransactions();
+      else if (state.view === "all") screen = renderAllTransactions();
+      else screen = renderManage();
+
+      const isHomeTab = state.view === "home" || state.view === "bank-tx";
+      const isRecordTab = state.view === "record";
+      root.innerHTML = `
+        <div class="phone-frame">
+          ${screen.topBar}
+          <div class="phone-scroll">${screen.body}</div>
+          <nav class="android-bottom-nav" aria-label="Bottom tabs">
+            <button type="button" class="android-nav-btn" data-action="go-home" ${isHomeTab ? 'aria-current="page"' : ""}><span class="nav-icon-pill">${ICONS.house}</span><span>Home</span></button>
+            <button type="button" class="android-nav-btn" data-action="go-record" ${isRecordTab ? 'aria-current="page"' : ""}><span class="nav-icon-pill">${ICONS.plusCircle}</span><span>Record</span></button>
+          </nav>
+          ${renderOverlay()}
+        </div>
+      `;
+      if (state.manageJumpTarget) {
+        const el = document.getElementById(state.manageJumpTarget);
+        state.manageJumpTarget = null;
+        if (el) el.scrollIntoView({ behavior: "auto", block: "start" });
+      }
+    }
+
+    root.addEventListener("click", (e) => {
+      if (e.target.matches('[data-overlay-backdrop="true"]')) { state.editingTxId = null; state.confirmDeleteTxId = null; state.archiveConfirmAccountId = null; state.restoreConfirmPayload = null; renderApp(); return; }
+      const btn = e.target.closest("[data-action]");
+      if (!btn) return;
+      const action = btn.dataset.action, id = btn.dataset.id;
+      if (action === "toggle-theme") { state.theme = state.theme === "light" ? "dark" : "light"; renderApp(); return; }
+      if (action === "go-home") { state.view = "home"; state.editingTxId = null; renderApp(); return; }
+      if (action === "go-record") { state.view = "record"; state.saveBanner = null; state.recordForm.error = ""; state.addingPaymentMode = false; renderApp(); return; }
+      if (action === "open-bank") { state.selectedBankId = id; state.view = "bank-tx"; state.editingTxId = null; renderApp(); return; }
+      if (action === "record-for-bank") { state.recordForm.accountId = id; state.view = "record"; state.saveBanner = null; state.recordForm.error = ""; renderApp(); return; }
+      if (action === "export-bank") { const acc = getAccountById(id); exportCsvFiles(getSortedTransactions().filter((t) => t.accountId === id), true, `transactions-${(acc?.name || "bank").toLowerCase().replace(/[^a-z0-9]+/g, "-")}`); return; }
+      if (action === "go-all") { state.view = "all"; renderApp(); return; }
+      if (action === "go-manage") { state.view = "manage"; state.manageJumpTarget = null; renderApp(); return; }
+      if (action === "go-manage-accounts") { state.view = "manage"; state.manageJumpTarget = "sec-accounts"; renderApp(); return; }
+      if (action === "go-manage-backup") { state.view = "manage"; state.manageJumpTarget = "sec-backup"; renderApp(); return; }
+      if (action === "dismiss-backup") { state.backupDismissed = true; renderApp(); return; }
+      if (action === "dismiss-save") { state.saveBanner = null; renderApp(); return; }
+      if (action === "dismiss-toast") { state.statusToast = null; renderApp(); return; }
+      if (action === "prev-month") { state.selectedMonth = shiftMonth(state.selectedMonth, -1); renderApp(); return; }
+      if (action === "next-month") { state.selectedMonth = shiftMonth(state.selectedMonth, 1); renderApp(); return; }
+      if (action === "rec-type") { state.recordForm.type = btn.dataset.type; state.recordForm.error = ""; state.addingPaymentMode = false; renderApp(); return; }
+      if (action === "rec-dir") { state.recordForm.direction = btn.dataset.dir; renderApp(); return; }
+      if (action === "rec-account") { state.recordForm.accountId = id; renderApp(); return; }
+      if (action === "rec-cat") { state.recordForm.categoryId = id; renderApp(); return; }
+      if (action === "rec-pay-mode") { if (state.recordForm.type === "transfer") state.recordForm.transferMode = btn.dataset.mode; else state.recordForm.expenseMode = btn.dataset.mode; renderApp(); return; }
+      if (action === "rec-dep-mode") { state.recordForm.depositMode = btn.dataset.mode; renderApp(); return; }
+      if (action === "toggle-add-pay-mode") { state.addingPaymentMode = !state.addingPaymentMode; state.newPaymentModeName = ""; renderApp(); if (state.addingPaymentMode) document.getElementById("new-pay-mode-input")?.focus(); return; }
+      if (action === "cancel-new-pay-mode") { state.addingPaymentMode = false; state.newPaymentModeName = ""; renderApp(); return; }
+      if (action === "save-new-pay-mode") {
+        const val = (document.getElementById("new-pay-mode-input")?.value || state.newPaymentModeName || "").trim();
+        if (val) {
+          const isTransfer = state.recordForm.type === "transfer";
+          const list = isTransfer ? state.transferPaymentModes : state.expensePaymentModes;
+          if (!list.some((m) => m.toLowerCase() === val.toLowerCase())) list.push(val);
+          const matched = list.find((m) => m.toLowerCase() === val.toLowerCase()) || val;
+          if (isTransfer) state.recordForm.transferMode = matched; else state.recordForm.expenseMode = matched;
+        }
+        state.addingPaymentMode = false; state.newPaymentModeName = ""; renderApp(); return;
+      }
+      if (action === "reset-filters") { state.filters = { fromDate: "", toDate: "", typeKey: "all", categoryId: "all" }; renderApp(); return; }
+      if (action === "edit-tx") { state.editingTxId = id; renderApp(); return; }
+      if (action === "close-edit-tx") { state.editingTxId = null; renderApp(); return; }
+      if (action === "ask-delete-tx") { state.confirmDeleteTxId = id; renderApp(); return; }
+      if (action === "cancel-delete-tx") { state.confirmDeleteTxId = null; renderApp(); return; }
+      if (action === "confirm-delete-tx") { state.transactions = state.transactions.filter((t) => t.id !== id); state.confirmDeleteTxId = null; state.editingTxId = null; state.statusToast = "Transaction deleted and balances updated."; renderApp(); return; }
+      if (action === "export-filtered") { exportCsvFiles(getFilteredTransactions(), true); return; }
+      if (action === "export-all") { exportCsvFiles(getSortedTransactions(), false); return; }
+      if (action === "download-backup") { downloadJsonBackup(); return; }
+      if (action === "open-rename-acc") { state.editingAccountId = state.editingAccountId === id ? null : id; state.adjustAccountId = null; renderApp(); return; }
+      if (action === "open-adjust-acc") { state.adjustAccountId = state.adjustAccountId === id ? null : id; state.editingAccountId = null; renderApp(); return; }
+      if (action === "cancel-acc-edit") { state.editingAccountId = null; state.adjustAccountId = null; renderApp(); return; }
+      if (action === "toggle-archive-acc") {
+        const acc = getAccountById(id); if (!acc) return;
+        if (!acc.archived && computeAccountBalancePaise(acc) !== 0) { state.archiveConfirmAccountId = id; renderApp(); return; }
+        acc.archived = !acc.archived; state.statusToast = `${acc.name} ${acc.archived ? "archived" : "restored to active"}.`; renderApp(); return;
+      }
+      if (action === "cancel-archive-acc") { state.archiveConfirmAccountId = null; renderApp(); return; }
+      if (action === "confirm-archive-acc") { const acc = getAccountById(id); if (acc) acc.archived = true; state.archiveConfirmAccountId = null; state.statusToast = `${acc ? acc.name : "Account"} archived.`; renderApp(); return; }
+      if (action === "open-rename-cat") { state.editingCategoryId = state.editingCategoryId === id ? null : id; renderApp(); return; }
+      if (action === "cancel-cat-edit") { state.editingCategoryId = null; renderApp(); return; }
+      if (action === "toggle-hide-cat") { const c = getCategoryById(id); if (c) c.hidden = !c.hidden; renderApp(); return; }
+      if (action === "cancel-restore") { state.restoreConfirmPayload = null; renderApp(); return; }
+      if (action === "confirm-restore") {
+        const p = state.restoreConfirmPayload;
+        if (p) { state.accounts = p.accounts; state.categories = p.categories; state.transactions = p.transactions; if (Array.isArray(p.expensePaymentModes)) state.expensePaymentModes = p.expensePaymentModes; if (Array.isArray(p.transferPaymentModes)) state.transferPaymentModes = p.transferPaymentModes; state.restoreConfirmPayload = null; state.statusToast = `Restored ${p.accounts.length} accounts and ${p.transactions.length} transactions.`; state.view = "home"; }
+        renderApp();
+      }
+    });
+
+    root.addEventListener("input", (e) => {
+      if (e.target.id === "rec-amount-input") { state.recordForm.amount = e.target.value; state.recordForm.error = ""; }
+      if (e.target.id === "rec-date-input") state.recordForm.date = e.target.value;
+      if (e.target.id === "rec-note-input") state.recordForm.note = e.target.value;
+      if (e.target.id === "new-pay-mode-input") state.newPaymentModeName = e.target.value;
+    });
+
+    root.addEventListener("change", (e) => {
+      if (e.target.id === "flt-from") { state.filters.fromDate = e.target.value; renderApp(); }
+      if (e.target.id === "flt-to") { state.filters.toDate = e.target.value; renderApp(); }
+      if (e.target.id === "flt-type") { state.filters.typeKey = e.target.value; renderApp(); }
+      if (e.target.id === "flt-cat") { state.filters.categoryId = e.target.value; renderApp(); }
+      if (e.target.id === "edit-tx-type") {
+        const wrap = document.getElementById("edit-tx-cat-wrap");
+        if (wrap) wrap.style.display = e.target.value === "expense" ? "" : "none";
+        const modeSel = document.getElementById("edit-tx-mode");
+        const modeLabel = document.querySelector('label[for="edit-tx-mode"]');
+        if (modeSel && modeLabel) {
+          const isDeposit = e.target.value === "deposit";
+          const isTransfer = e.target.value.startsWith("transfer");
+          modeLabel.textContent = isDeposit ? "Mode of Deposit" : "Payment Mode";
+          const opts = isDeposit ? state.depositModes : isTransfer ? state.transferPaymentModes : state.expensePaymentModes;
+          modeSel.innerHTML = opts.map((m) => `<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`).join("");
+        }
+      }
+      if (e.target.id === "restore-file-input") {
+        const file = e.target.files && e.target.files[0]; if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          try {
+            const parsed = JSON.parse(String(reader.result));
+            if (!Array.isArray(parsed.accounts) || !Array.isArray(parsed.categories) || !Array.isArray(parsed.transactions)) state.statusToast = "Invalid backup file.";
+            else state.restoreConfirmPayload = parsed;
+          } catch { state.statusToast = "Could not read backup JSON file."; }
+          renderApp();
+        };
+        reader.readAsText(file);
+      }
+    });
+
+    root.addEventListener("submit", (e) => {
+      e.preventDefault();
+      if (e.target.id === "record-form") {
+        const amountPaise = parseRupeesToPaise(state.recordForm.amount);
+        if (!amountPaise || amountPaise <= 0) { state.recordForm.error = "Please enter an amount greater than ₹0."; renderApp(); document.getElementById("rec-amount-input")?.focus(); return; }
+        const f = state.recordForm;
+        const direction = f.type === "deposit" ? "incoming" : f.type === "expense" ? "outgoing" : f.direction;
+        const mode = f.type === "deposit" ? f.depositMode : f.type === "transfer" ? f.transferMode : f.expenseMode;
+        const now = new Date().toISOString();
+        state.transactions.unshift({ id: "tx-" + Date.now(), type: f.type, direction, amountPaise, accountId: f.accountId, categoryId: f.type === "expense" ? f.categoryId : null, mode, date: f.date || TODAY, note: f.note.trim(), createdAt: now, updatedAt: now });
+        state.lastUsedAccountId = f.accountId;
+        const accName = getAccountById(f.accountId)?.name || "account";
+        const catName = f.type === "expense" ? (getCategoryById(f.categoryId)?.name || "Expense") : (f.type === "deposit" ? `Deposit (${mode})` : `Transfer (${mode})`);
+        state.saveBanner = `Saved ${catName} (${formatRupees(amountPaise)}) to ${accName}.`;
+        state.recordForm = { type: "expense", direction: "outgoing", amount: "", accountId: f.accountId, categoryId: f.categoryId, expenseMode: f.expenseMode, transferMode: f.transferMode, depositMode: f.depositMode, date: TODAY, note: "", error: "" };
+        state.view = "home"; renderApp(); return;
+      }
+      if (e.target.id === "edit-tx-form") {
+        const tx = state.transactions.find((t) => t.id === e.target.dataset.txId); if (!tx) return;
+        const typeVal = document.getElementById("edit-tx-type").value;
+        const paise = parseRupeesToPaise(document.getElementById("edit-tx-amount").value); if (!paise || paise <= 0) return;
+        tx.type = typeVal.startsWith("transfer") ? "transfer" : typeVal;
+        tx.direction = typeVal === "deposit" || typeVal === "transfer-incoming" ? "incoming" : "outgoing";
+        tx.amountPaise = paise;
+        tx.accountId = document.getElementById("edit-tx-account").value;
+        tx.categoryId = tx.type === "expense" ? document.getElementById("edit-tx-cat").value : null;
+        tx.mode = document.getElementById("edit-tx-mode")?.value || tx.mode;
+        tx.date = document.getElementById("edit-tx-date").value || tx.date;
+        tx.note = document.getElementById("edit-tx-note").value.trim();
+        tx.updatedAt = new Date().toISOString();
+        state.editingTxId = null; state.statusToast = "Updated entry and recalculated bank balances."; renderApp(); return;
+      }
+      if (e.target.id === "add-account-form") {
+        const name = document.getElementById("new-acc-name").value.trim();
+        const paise = parseRupeesToPaise(document.getElementById("new-acc-bal").value || "0");
+        if (!name || paise === null) return;
+        const newAcc = { id: "acc-" + Date.now(), name, startingBalancePaise: paise, createdAt: new Date().toISOString(), archived: false };
+        state.accounts.push(newAcc); state.lastUsedAccountId = newAcc.id; state.statusToast = `Added ${name} with balance ${formatRupees(paise)}.`; renderApp(); return;
+      }
+      if (e.target.id === "rename-acc-form") { const acc = getAccountById(e.target.dataset.id); const val = document.getElementById("rename-acc-input").value.trim(); if (acc && val) acc.name = val; state.editingAccountId = null; renderApp(); return; }
+      if (e.target.id === "adjust-acc-form") { const acc = getAccountById(e.target.dataset.id); const desired = parseRupeesToPaise(document.getElementById("adjust-acc-input").value); if (acc && desired !== null) { acc.startingBalancePaise = desired - computeNetTransactionsPaise(acc.id); state.statusToast = `Updated ${acc.name} balance to ${formatRupees(desired)}.`; } state.adjustAccountId = null; renderApp(); return; }
+      if (e.target.id === "add-cat-form") { const name = document.getElementById("new-cat-name").value.trim(); if (!name) return; state.categories.push({ id: "cat-" + Date.now(), name, hidden: false, sortOrder: state.categories.length + 1, isDefault: false }); renderApp(); return; }
+      if (e.target.id === "rename-cat-form") { const cat = getCategoryById(e.target.dataset.id); const val = document.getElementById("rename-cat-input").value.trim(); if (cat && val) cat.name = val; state.editingCategoryId = null; renderApp(); }
+    });
+
+    renderApp();
+  </script>
+</body>
+</html>
