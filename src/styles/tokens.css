@@ -1,0 +1,88 @@
+/* ==========================================================================
+   APPROVED DESIGN TOKENS — Soft Cards (Light Default + High-Contrast Dark)
+   ========================================================================== */
+:root,
+[data-theme="light"] {
+  --outer-backdrop: #E2E8F0;
+  --color-background: #F8FAFC;
+  --color-card: #FFFFFF;
+  --color-muted: #EEF2F6;
+  --color-foreground: #020617;
+  --color-label: #334155;
+  --color-muted-foreground: #475569; /* ~7.4:1 contrast */
+  --color-primary: #0F172A;
+  --color-on-primary: #FFFFFF;
+  --color-primary-hover: #1E293B;
+  --color-secondary: #1E3A8A; /* Trust Navy data bar & active accent */
+  --color-secondary-soft: #DBEAFE;
+  --color-secondary-ink: #1E3A8A;
+  --color-bar-rest: #64748B;
+  --color-border: #E2E8F0;
+  --color-rule: #F1F5F9;
+  --color-control: #CBD5E1;
+
+  --color-positive: #166534;
+  --color-positive-bg: #DCFCE7;
+  --color-positive-ink: #14532D;
+
+  --color-warning-bg: #FFFBEB;
+  --color-warning-border: #FDE68A;
+  --color-warning-ink: #78350F;
+
+  --color-destructive: #DC2626;
+  --color-destructive-bg: #FEE2E2;
+  --color-destructive-ink: #991B1B;
+  --color-destructive-border: #FCA5A5;
+
+  --nav-pill-bg: #DBEAFE;
+  --nav-pill-ink: #1E3A8A;
+  --backdrop-scrim: rgba(2, 6, 23, 0.5);
+
+  --font-sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+
+  --radius-card: 20px;
+  --radius-control: 14px;
+  --radius-chip: 999px;
+  --space-gap: 16px;
+  --card-pad: 18px;
+  --row-pad-y: 14px;
+}
+
+[data-theme="dark"] {
+  --outer-backdrop: #05080F;
+  --color-background: #0B0F17;
+  --color-card: #131A26;
+  --color-muted: #1C2536;
+  --color-foreground: #F8FAFC;
+  --color-label: #E2E8F0;
+  --color-muted-foreground: #B6C2D2; /* ~8.5:1 contrast on #131A26 */
+  --color-primary: #F8FAFC;
+  --color-on-primary: #0F172A;
+  --color-primary-hover: #E2E8F0;
+  --color-secondary: #5B9BF8; /* >6.5:1 on #131A26 */
+  --color-secondary-soft: #172554;
+  --color-secondary-ink: #BFDBFE;
+  --color-bar-rest: #64748B;
+  --color-border: #232D3F;
+  --color-rule: #1B2332;
+  --color-control: #334155;
+
+  --color-positive: #4ADE80;
+  --color-positive-bg: #143322;
+  --color-positive-ink: #86EFAC;
+
+  --color-warning-bg: #261D0B;
+  --color-warning-border: #6B4C11;
+  --color-warning-ink: #FDE68A;
+
+  --color-destructive: #DC2626;
+  --color-destructive-bg: #3B1518;
+  --color-destructive-ink: #FCA5A5;
+  --color-destructive-border: #7F1D1D;
+
+  --nav-pill-bg: #172554;
+  --nav-pill-ink: #93C5FD;
+  --backdrop-scrim: rgba(0, 0, 0, 0.72);
+  color-scheme: dark;
+}
