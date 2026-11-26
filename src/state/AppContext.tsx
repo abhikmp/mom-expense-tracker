@@ -137,8 +137,10 @@ export function AppProvider({
   const [filters, setFiltersState] = useState<FilterState>(INITIAL_FILTERS);
   const [manageJumpTarget, setManageJumpTarget] = useState<string | null>(null);
   const [saveBanner, setSaveBanner] = useState<string | null>(null);
+  const [saveBannerSeq, setSaveBannerSeq] = useState(0);
   const [statusToast, setStatusToast] = useState<string | null>(null);
   const [statusToastTone, setStatusToastTone] = useState<'success' | 'error'>('success');
+  const [statusToastSeq, setStatusToastSeq] = useState(0);
   const [storageError, setStorageError] = useState<string | null>(null);
   const [backupDismissed, setBackupDismissed] = useState(false);
 
@@ -205,6 +207,23 @@ export function AppProvider({
     }
   }, [settings.theme]);
 
+  useEffect(() => {
+    if (!saveBanner) return;
+    const timer = window.setTimeout(() => {
+      setSaveBanner(null);
+    }, 4000);
+    return () => window.clearTimeout(timer);
+  }, [saveBanner, saveBannerSeq]);
+
+  useEffect(() => {
+    if (!statusToast || statusToastTone !== 'success') return;
+    const timer = window.setTimeout(() => {
+      setStatusToast(null);
+      setStatusToastTone('success');
+    }, 3000);
+    return () => window.clearTimeout(timer);
+  }, [statusToast, statusToastTone, statusToastSeq]);
+
   const getDb = useCallback(async (): Promise<IDBPDatabase<MomExpenseDbSchema>> => {
     if (dbRef.current) {
       return dbRef.current;
@@ -256,6 +275,7 @@ export function AppProvider({
   }, []);
 
   const showToast = useCallback((message: string, tone: 'success' | 'error' = 'success') => {
+    setStatusToastSeq((n) => n + 1);
     setStatusToastTone(tone);
     setStatusToast(message);
   }, []);
@@ -342,6 +362,7 @@ export function AppProvider({
               : record.type === 'deposit'
                 ? `Deposit (${record.mode})`
                 : `Transfer (${record.mode})`;
+          setSaveBannerSeq((n) => n + 1);
           setSaveBanner(`Saved ${label} (${formatRupees(record.amountPaise)}) to ${accName}.`);
           setPreselectedAccountId(null);
           setView('home');

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { AppProvider, useApp } from '../../src/state/AppContext';
 import { TopBar } from '../../src/components/TopBar';
@@ -57,6 +57,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   cleanup();
   vi.restoreAllMocks();
 });
@@ -348,6 +349,12 @@ describe('Banners and AppContext state flows', () => {
         <button type="button" onClick={() => app.exportCsv('all', app.transactions)}>
           Export CSV
         </button>
+        <button type="button" onClick={() => app.showToast('Updated entry.', 'success')}>
+          Show Success Toast
+        </button>
+        <button type="button" onClick={() => app.showToast('Something failed.', 'error')}>
+          Show Error Toast
+        </button>
       </div>
     );
   }
@@ -524,6 +531,68 @@ describe('Banners and AppContext state flows', () => {
     });
 
     expect(screen.queryByText('No bank accounts added yet')).not.toBeInTheDocument();
+  });
+
+  it('auto-dismisses save banner after 4s and success toasts after 3s while keeping error banners manual', async () => {
+    const dbName = nextDbName();
+    const db = await openAppDb(dbName);
+    await saveAccount(db, {
+      id: 'acc-1',
+      name: 'SBI Savings',
+      startingBalancePaise: 500_000,
+      createdAt: '2026-11-01T08:00:00.000Z',
+      archived: false,
+    });
+    db.close();
+
+    render(
+      <AppProvider dbName={dbName}>
+        <ContextHarness />
+      </AppProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('loading')).toHaveTextContent('false');
+    });
+
+    vi.useFakeTimers();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save Sample' }));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(50);
+    });
+    expect(screen.getByText(/Saved Groceries \(₹500\) to SBI Savings\./)).toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3900);
+    });
+    expect(screen.getByText(/Saved Groceries \(₹500\) to SBI Savings\./)).toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(100);
+    });
+    expect(screen.queryByText(/Saved Groceries \(₹500\) to SBI Savings\./)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show Success Toast' }));
+    expect(screen.getByText('Updated entry.')).toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2900);
+    });
+    expect(screen.getByText('Updated entry.')).toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(100);
+    });
+    expect(screen.queryByText('Updated entry.')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show Error Toast' }));
+    expect(screen.getByText('Something failed.')).toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+    expect(screen.getByText('Something failed.')).toBeInTheDocument();
   });
 });
 
