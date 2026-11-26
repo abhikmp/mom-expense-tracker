@@ -326,4 +326,48 @@ describe('RecordView', () => {
     expect(within(balanceSection).getAllByText('₹9,550').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText(/Apollo Pharmacy/)).toBeInTheDocument();
   });
+
+  it('keeps a manually selected bank account chip active when preselectedAccountId prop is provided', async () => {
+    const user = userEvent.setup();
+    const dbName = nextDbName();
+    const db = await openAppDb(dbName);
+    await saveAccount(db, {
+      id: 'acc-1',
+      name: 'SBI Savings',
+      startingBalancePaise: 1_000_000,
+      createdAt: '2026-11-01T08:00:00.000Z',
+      archived: false,
+    });
+    await saveAccount(db, {
+      id: 'acc-2',
+      name: 'HDFC Pension',
+      startingBalancePaise: 2_500_000,
+      createdAt: '2026-11-02T08:00:00.000Z',
+      archived: false,
+    });
+    db.close();
+
+    render(
+      <AppProvider dbName={dbName}>
+        <DirectRecordHarness preselectedAccountId="acc-2" />
+      </AppProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('loading')).not.toBeInTheDocument();
+    });
+
+    const bankGroup = screen.getByRole('group', { name: 'Bank Account' });
+    const hdfcBtn = within(bankGroup).getByRole('button', { name: /HDFC Pension/ });
+    const sbiBtn = within(bankGroup).getByRole('button', { name: /SBI Savings/ });
+
+    expect(hdfcBtn).toHaveAttribute('aria-pressed', 'true');
+    expect(sbiBtn).toHaveAttribute('aria-pressed', 'false');
+
+    await user.click(sbiBtn);
+    await user.type(screen.getByLabelText('Amount (Rupees)'), '200');
+
+    expect(sbiBtn).toHaveAttribute('aria-pressed', 'true');
+    expect(hdfcBtn).toHaveAttribute('aria-pressed', 'false');
+  });
 });

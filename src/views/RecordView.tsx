@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Check } from '@phosphor-icons/react';
 import { TopBar } from '../components/TopBar';
 import { computeAccountBalancePaise } from '../domain/calculations';
@@ -39,8 +39,8 @@ export function RecordView({ preselectedAccountId }: RecordViewProps = {}) {
   const effectivePreselected =
     preselectedAccountId !== undefined ? preselectedAccountId : contextPreselectedAccountId;
 
-  const activeAccounts = accounts.filter((a) => !a.archived);
-  const visibleCategories = categories.filter((c) => !c.hidden);
+  const activeAccounts = useMemo(() => accounts.filter((a) => !a.archived), [accounts]);
+  const visibleCategories = useMemo(() => categories.filter((c) => !c.hidden), [categories]);
 
   const [type, setType] = useState<TransactionType>('expense');
   const [direction, setDirection] = useState<TransactionDirection>('outgoing');
