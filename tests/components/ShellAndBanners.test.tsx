@@ -151,12 +151,43 @@ describe('TopBar', () => {
 
     await waitFor(() => {
       expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
+      expect(screen.getByRole('button', { name: /Switch to light theme/i })).toHaveAttribute(
+        'aria-pressed',
+        'true'
+      );
     });
     expect(document.querySelector('meta[name="theme-color"]')).toHaveAttribute('content', '#0B0F17');
-    expect(screen.getByRole('button', { name: /Switch to light theme/i })).toHaveAttribute(
-      'aria-pressed',
-      'true'
+  });
+
+  it('preserves a theme toggle made before IndexedDB initialization completes', async () => {
+    const user = userEvent.setup();
+    const dbName = nextDbName();
+    let resolveOpen!: (db: Awaited<ReturnType<typeof openAppDb>>) => void;
+    const pendingDb = new Promise<Awaited<ReturnType<typeof openAppDb>>>((resolve) => {
+      resolveOpen = resolve;
+    });
+    const realOpen = dbModule.openAppDb;
+    vi.spyOn(dbModule, 'openAppDb').mockReturnValueOnce(pendingDb);
+
+    render(
+      <AppProvider dbName={dbName}>
+        <TopBar title="Expenses" />
+      </AppProvider>
     );
+
+    await user.click(screen.getByRole('button', { name: /Switch to dark theme/i }));
+    expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
+
+    const db = await realOpen(dbName);
+    resolveOpen(db);
+
+    await waitFor(() => {
+      expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
+      expect(screen.getByRole('button', { name: /Switch to light theme/i })).toHaveAttribute(
+        'aria-pressed',
+        'true'
+      );
+    });
   });
 });
 

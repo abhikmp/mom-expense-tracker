@@ -144,9 +144,11 @@ export function AppProvider({
 
   const dbRef = useRef<IDBPDatabase<MomExpenseDbSchema> | null>(null);
   const dbReadyRef = useRef<Promise<IDBPDatabase<MomExpenseDbSchema>> | null>(null);
+  const themeToggledDuringInitRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
+    themeToggledDuringInitRef.current = false;
     setLoading(true);
     setStorageError(null);
 
@@ -161,7 +163,11 @@ export function AppProvider({
         setAccounts(loaded.accounts);
         setCategories(loaded.categories);
         setTransactions(loaded.transactions);
-        setSettings(loaded.settings);
+        setSettings((prev) =>
+          themeToggledDuringInitRef.current
+            ? { ...loaded.settings, theme: prev.theme }
+            : loaded.settings
+        );
         setStorageError(null);
         setLoading(false);
       }
@@ -281,6 +287,7 @@ export function AppProvider({
   );
 
   const toggleTheme = useCallback(async () => {
+    themeToggledDuringInitRef.current = true;
     const previousTheme = settings.theme;
     const nextTheme = previousTheme === 'light' ? 'dark' : 'light';
     setSettings((prev) => ({ ...prev, theme: nextTheme }));
