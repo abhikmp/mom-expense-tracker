@@ -224,6 +224,7 @@ button { touch-action: manipulation; }
 .banner { display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: var(--radius-card); border: 1px solid var(--color-border); animation: bannerEnter 180ms var(--ease-out); }
 .banner-warning { background: var(--color-warning-bg); border-color: var(--color-warning-border); color: var(--color-warning-ink); }
 .banner-success { background: var(--color-positive-bg); border-color: var(--color-positive-bg); color: var(--color-positive-ink); }
+.banner-error { background: var(--color-destructive-bg); border-color: var(--color-destructive-border); color: var(--color-destructive-ink); }
 .banner-copy { display: flex; align-items: flex-start; gap: 10px; font-size: 14px; font-weight: 500; line-height: 1.4; }
 .banner-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 @keyframes bannerEnter { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }

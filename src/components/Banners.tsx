@@ -13,6 +13,7 @@ export function Banners() {
     view,
     saveBanner,
     statusToast,
+    statusToastTone,
     backupDismissed,
     navigate,
     dismissToast,
@@ -33,9 +34,16 @@ export function Banners() {
   return (
     <>
       {statusToast && (
-        <div className="banner banner-success" role="status">
+        <div
+          className={`banner ${statusToastTone === 'error' ? 'banner-error' : 'banner-success'}`}
+          role="status"
+        >
           <div className="banner-copy">
-            <Check size={18} aria-hidden="true" />
+            {statusToastTone === 'error' ? (
+              <Warning size={18} aria-hidden="true" />
+            ) : (
+              <Check size={18} aria-hidden="true" />
+            )}
             <span>{statusToast}</span>
           </div>
           <div className="banner-actions">

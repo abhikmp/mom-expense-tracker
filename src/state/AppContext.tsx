@@ -59,6 +59,7 @@ export interface AppContextValue {
   manageJumpTarget: string | null;
   saveBanner: string | null;
   statusToast: string | null;
+  statusToastTone: 'success' | 'error';
   backupDismissed: boolean;
   navigate: (view: ViewId, opts?: NavigateOptions) => void;
   openBankHistory: (bankId: string) => void;
@@ -70,6 +71,7 @@ export interface AppContextValue {
   setFilters: (patch: Partial<FilterState>) => void;
   resetFilters: () => void;
   dismissSaveBanner: () => void;
+  showToast: (message: string, tone?: 'success' | 'error') => void;
   dismissToast: () => void;
   dismissBackupReminder: () => void;
   recordTransaction: (input: NewTransactionInput) => Promise<Transaction>;
@@ -132,6 +134,7 @@ export function AppProvider({
   const [manageJumpTarget, setManageJumpTarget] = useState<string | null>(null);
   const [saveBanner, setSaveBanner] = useState<string | null>(null);
   const [statusToast, setStatusToast] = useState<string | null>(null);
+  const [statusToastTone, setStatusToastTone] = useState<'success' | 'error'>('success');
   const [backupDismissed, setBackupDismissed] = useState(false);
 
   const dbRef = useRef<IDBPDatabase<MomExpenseDbSchema> | null>(null);
@@ -253,8 +256,14 @@ export function AppProvider({
     setSaveBanner(null);
   }, []);
 
+  const showToast = useCallback((message: string, tone: 'success' | 'error' = 'success') => {
+    setStatusToastTone(tone);
+    setStatusToast(message);
+  }, []);
+
   const dismissToast = useCallback(() => {
     setStatusToast(null);
+    setStatusToastTone('success');
   }, []);
 
   const dismissBackupReminder = useCallback(() => {
@@ -304,9 +313,9 @@ export function AppProvider({
       const nextSettings = await updateTransactionAtomic(db, updated);
       setTransactions((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
       setSettings(nextSettings);
-      setStatusToast('Updated entry and recalculated bank balances.');
+      showToast('Updated entry and recalculated bank balances.');
     },
-    [getDb]
+    [getDb, showToast]
   );
 
   const deleteTransaction = useCallback(
@@ -315,9 +324,9 @@ export function AppProvider({
       const nextSettings = await deleteTransactionAtomic(db, txId);
       setTransactions((prev) => prev.filter((item) => item.id !== txId));
       setSettings(nextSettings);
-      setStatusToast('Transaction deleted and balances updated.');
+      showToast('Transaction deleted and balances updated.');
     },
-    [getDb]
+    [getDb, showToast]
   );
 
   const addAccount = useCallback(
@@ -335,9 +344,9 @@ export function AppProvider({
       await saveAccount(db, account, true);
       setAccounts((prev) => [...prev, account]);
       setSettings((prev) => ({ ...prev, lastUsedAccountId: account.id }));
-      setStatusToast(`Added ${trimmed} with balance ${formatRupees(startingBalancePaise)}.`);
+      showToast(`Added ${trimmed} with balance ${formatRupees(startingBalancePaise)}.`);
     },
-    [getDb]
+    [getDb, showToast]
   );
 
   const renameAccount = useCallback(
@@ -367,9 +376,9 @@ export function AppProvider({
       const db = await getDb();
       await saveAccount(db, updated, false);
       setAccounts((prev) => prev.map((a) => (a.id === id ? updated : a)));
-      setStatusToast(`Updated ${target.name} balance to ${formatRupees(desiredBalancePaise)}.`);
+      showToast(`Updated ${target.name} balance to ${formatRupees(desiredBalancePaise)}.`);
     },
-    [accounts, getDb, transactions]
+    [accounts, getDb, showToast, transactions]
   );
 
   const setAccountArchived = useCallback(
@@ -380,9 +389,9 @@ export function AppProvider({
       const db = await getDb();
       await saveAccount(db, updated, false);
       setAccounts((prev) => prev.map((a) => (a.id === id ? updated : a)));
-      setStatusToast(`${target.name} ${archived ? 'archived' : 'restored to active'}.`);
+      showToast(`${target.name} ${archived ? 'archived' : 'restored to active'}.`);
     },
-    [accounts, getDb]
+    [accounts, getDb, showToast]
   );
 
   const addCategory = useCallback(
@@ -468,7 +477,7 @@ export function AppProvider({
         const nextSettings = await markBackupOrExportCompleted(db, new Date().toISOString());
         setSettings(nextSettings);
         setBackupDismissed(false);
-        setStatusToast(
+        showToast(
           result.method === 'share'
             ? `Shared ${result.files[0]} & ${result.files[1]}.`
             : `Exported ${result.files[0]} & ${result.files[1]}.`
@@ -477,7 +486,7 @@ export function AppProvider({
 
       return result;
     },
-    [accounts, categories, getDb, transactions]
+    [accounts, categories, getDb, showToast, transactions]
   );
 
   const downloadBackup = useCallback(async (): Promise<void> => {
@@ -494,8 +503,8 @@ export function AppProvider({
     const nextSettings = await markBackupOrExportCompleted(db, exportedAt);
     setSettings(nextSettings);
     setBackupDismissed(false);
-    setStatusToast(`Downloaded backup ${filename}.`);
-  }, [accounts, categories, getDb, settings, transactions]);
+    showToast(`Downloaded backup ${filename}.`);
+  }, [accounts, categories, getDb, settings, showToast, transactions]);
 
   const restoreBackup = useCallback(
     async (payload: BackupPayload): Promise<void> => {
@@ -510,12 +519,12 @@ export function AppProvider({
       setPreselectedAccountId(null);
       setSaveBanner(null);
       setFiltersState(INITIAL_FILTERS);
-      setStatusToast(
+      showToast(
         `Restored ${restored.accounts.length} accounts and ${restored.transactions.length} transactions.`
       );
       setView('home');
     },
-    [getDb]
+    [getDb, showToast]
   );
 
   const value = useMemo<AppContextValue>(
@@ -533,6 +542,7 @@ export function AppProvider({
       manageJumpTarget,
       saveBanner,
       statusToast,
+      statusToastTone,
       backupDismissed,
       navigate,
       openBankHistory,
@@ -544,6 +554,7 @@ export function AppProvider({
       setFilters,
       resetFilters,
       dismissSaveBanner,
+      showToast,
       dismissToast,
       dismissBackupReminder,
       recordTransaction,
@@ -575,6 +586,7 @@ export function AppProvider({
       manageJumpTarget,
       saveBanner,
       statusToast,
+      statusToastTone,
       backupDismissed,
       navigate,
       openBankHistory,
@@ -586,6 +598,7 @@ export function AppProvider({
       setFilters,
       resetFilters,
       dismissSaveBanner,
+      showToast,
       dismissToast,
       dismissBackupReminder,
       recordTransaction,
