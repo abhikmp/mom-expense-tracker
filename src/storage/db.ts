@@ -6,13 +6,15 @@ import {
   type BackupPayload,
   type BankAccount,
   type Category,
+  type SecurityRecord,
   type Transaction,
 } from '../domain/types';
 import { validateBackupPayload } from '../domain/validation';
 
 const DEFAULT_DB_NAME = 'mom-expense-tracker';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const SETTINGS_KEY = 'app' as const;
+const SECURITY_KEY = 'lock' as const;
 
 export interface SettingsRecord extends AppSettings {
   key: typeof SETTINGS_KEY;
@@ -38,6 +40,10 @@ export interface MomExpenseDbSchema extends DBSchema {
   settings: {
     key: typeof SETTINGS_KEY;
     value: SettingsRecord;
+  };
+  security: {
+    key: typeof SECURITY_KEY;
+    value: SecurityRecord;
   };
 }
 
@@ -125,6 +131,9 @@ export async function openAppDb(
       }
       if (!db.objectStoreNames.contains('settings')) {
         db.createObjectStore('settings', { keyPath: 'key' });
+      }
+      if (!db.objectStoreNames.contains('security')) {
+        db.createObjectStore('security', { keyPath: 'key' });
       }
     },
   });
@@ -369,4 +378,54 @@ export async function restoreBackupAtomic(
     transactions: sortTransactions(transactions),
     settings: nextSettings,
   };
+}
+
+/**
+ * Loads the persisted PIN/Master Password security record, or `null` if lock is not enabled.
+ */
+export async function loadSecurityRecord(
+  db: IDBPDatabase<MomExpenseDbSchema>
+): Promise<SecurityRecord | null> {
+  return (await db.get('security', SECURITY_KEY)) ?? null;
+}
+
+/**
+ * Persists the PIN/Master Password security record.
+ */
+export async function saveSecurityRecord(
+  db: IDBPDatabase<MomExpenseDbSchema>,
+  record: SecurityRecord
+): Promise<void> {
+  await db.put('security', record);
+}
+
+/**
+ * Removes the persisted PIN/Master Password security record.
+ */
+export async function deleteSecurityRecord(
+  db: IDBPDatabase<MomExpenseDbSchema>
+): Promise<void> {
+  await db.delete('security', SECURITY_KEY);
+}
+
+/**
+ * Atomically restores a previously deleted transaction and decrements `changesSinceLastBackup` (clamped to `>= 0`).
+ */
+export async function restoreDeletedTransactionAtomic(
+  db: IDBPDatabase<MomExpenseDbSchema>,
+  record: Transaction
+): Promise<AppSettings> {
+  const tx = db.transaction(['transactions', 'settings'], 'readwrite');
+  const settingsStore = tx.objectStore('settings');
+
+  await tx.objectStore('transactions').put(record);
+  const current = toAppSettings(await settingsStore.get(SETTINGS_KEY));
+  const nextSettings: AppSettings = {
+    ...current,
+    changesSinceLastBackup: Math.max(0, current.changesSinceLastBackup - 1),
+  };
+  await settingsStore.put(toSettingsRecord(nextSettings));
+  await tx.done;
+
+  return nextSettings;
 }

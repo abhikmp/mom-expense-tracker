@@ -49,6 +49,20 @@ export interface AppSettings {
   changesSinceLastBackup: number;
 }
 
+export interface SaltedHash {
+  algorithm: 'PBKDF2-SHA256';
+  iterations: number;
+  saltB64: string;
+  hashB64: string;
+}
+
+export interface SecurityRecord {
+  key: 'lock';
+  pinHash: SaltedHash;
+  masterPasswordHash: SaltedHash;
+  updatedAt: string;
+}
+
 export interface FilterState {
   fromDate: string;
   toDate: string;

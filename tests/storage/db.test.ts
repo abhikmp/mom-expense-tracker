@@ -1,22 +1,27 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import type { IDBPDatabase } from 'idb';
+import { openDB, type IDBPDatabase } from 'idb';
 import {
   DEFAULT_CATEGORIES,
   DEFAULT_SETTINGS,
   type BackupPayload,
   type BankAccount,
   type Category,
+  type SecurityRecord,
   type Transaction,
 } from '../../src/domain/types';
 import {
   createTransactionAtomic,
+  deleteSecurityRecord,
   deleteTransactionAtomic,
   loadAppState,
+  loadSecurityRecord,
   markBackupOrExportCompleted,
   openAppDb,
   restoreBackupAtomic,
+  restoreDeletedTransactionAtomic,
   saveAccount,
   saveCategory,
+  saveSecurityRecord,
   saveSettings,
   updateTransactionAtomic,
   type MomExpenseDbSchema,
@@ -311,5 +316,138 @@ describe('IndexedDB persistence layer', () => {
     // Existing DB state remains intact after rejected restore
     const afterFailed = await loadAppState(db);
     expect(afterFailed.accounts.map((a) => a.id)).toEqual(['acc-closed']);
+  });
+
+  it('upgrades an existing v1 database to v2 preserving all data and creating the security store', async () => {
+    testCounter += 1;
+    const dbName = `mom-expense-v1-upgrade-${Date.now()}-${testCounter}`;
+
+    const seededAccount = makeAccount({ id: 'acc-v1', name: 'SBI v1' });
+    const seededTx = makeTransaction({ id: 'tx-v1', accountId: 'acc-v1', amountPaise: 12345 });
+
+    const v1Db = await openDB(dbName, 1, {
+      upgrade(db) {
+        db.createObjectStore('accounts', { keyPath: 'id' });
+        db.createObjectStore('categories', { keyPath: 'id' });
+        const txStore = db.createObjectStore('transactions', { keyPath: 'id' });
+        txStore.createIndex('by-date', 'date');
+        txStore.createIndex('by-account', 'accountId');
+        db.createObjectStore('settings', { keyPath: 'key' });
+      },
+    });
+    await v1Db.put('accounts', seededAccount);
+    await v1Db.put('categories', DEFAULT_CATEGORIES[0]);
+    await v1Db.put('transactions', seededTx);
+    await v1Db.put('settings', {
+      key: 'app',
+      ...DEFAULT_SETTINGS,
+      lastUsedAccountId: 'acc-v1',
+      changesSinceLastBackup: 4,
+    });
+    v1Db.close();
+
+    const upgradedDb = await openAppDb(dbName);
+    openDbs.push(upgradedDb);
+
+    expect(upgradedDb.version).toBe(2);
+    expect(upgradedDb.objectStoreNames.contains('security')).toBe(true);
+
+    const state = await loadAppState(upgradedDb);
+    expect(state.accounts).toEqual([seededAccount]);
+    expect(state.categories).toEqual([DEFAULT_CATEGORIES[0]]);
+    expect(state.transactions).toEqual([seededTx]);
+    expect(state.settings.lastUsedAccountId).toBe('acc-v1');
+    expect(state.settings.changesSinceLastBackup).toBe(4);
+    await expect(loadSecurityRecord(upgradedDb)).resolves.toBeNull();
+  });
+
+  it('loads, saves, and deletes the security lock record', async () => {
+    const db = await createTestDb();
+
+    await expect(loadSecurityRecord(db)).resolves.toBeNull();
+
+    const record: SecurityRecord = {
+      key: 'lock',
+      pinHash: {
+        algorithm: 'PBKDF2-SHA256',
+        iterations: 100_000,
+        saltB64: 'c2FsdDE=',
+        hashB64: 'aGFzaDE=',
+      },
+      masterPasswordHash: {
+        algorithm: 'PBKDF2-SHA256',
+        iterations: 100_000,
+        saltB64: 'c2FsdDI=',
+        hashB64: 'aGFzaDI=',
+      },
+      updatedAt: '2026-11-27T10:00:00.000Z',
+    };
+
+    await saveSecurityRecord(db, record);
+    await expect(loadSecurityRecord(db)).resolves.toEqual(record);
+
+    await deleteSecurityRecord(db);
+    await expect(loadSecurityRecord(db)).resolves.toBeNull();
+  });
+
+  it('restoreBackupAtomic does not delete or overwrite an existing security lock record', async () => {
+    const db = await createTestDb();
+    await loadAppState(db);
+
+    const lockRecord: SecurityRecord = {
+      key: 'lock',
+      pinHash: {
+        algorithm: 'PBKDF2-SHA256',
+        iterations: 100_000,
+        saltB64: 'c2FsdDE=',
+        hashB64: 'aGFzaDE=',
+      },
+      masterPasswordHash: {
+        algorithm: 'PBKDF2-SHA256',
+        iterations: 100_000,
+        saltB64: 'c2FsdDI=',
+        hashB64: 'aGFzaDI=',
+      },
+      updatedAt: '2026-11-27T10:00:00.000Z',
+    };
+    await saveSecurityRecord(db, lockRecord);
+
+    const payload: BackupPayload = {
+      _note: '',
+      schemaVersion: 1,
+      exportedAt: '2026-11-27T11:00:00.000Z',
+      accounts: [makeAccount({ id: 'acc-restored' })],
+      categories: DEFAULT_CATEGORIES,
+      transactions: [],
+    };
+
+    await restoreBackupAtomic(db, payload);
+
+    await expect(loadSecurityRecord(db)).resolves.toEqual(lockRecord);
+  });
+
+  it('restoreDeletedTransactionAtomic restores a deleted transaction and decrements changesSinceLastBackup clamped at 0', async () => {
+    const db = await createTestDb();
+    await loadAppState(db);
+    await saveAccount(db, makeAccount({ id: 'acc-1' }));
+
+    const txRecord = makeTransaction({ id: 'tx-undo', accountId: 'acc-1', amountPaise: 5000 });
+    await createTransactionAtomic(db, txRecord);
+    const afterDelete = await deleteTransactionAtomic(db, 'tx-undo');
+    expect(afterDelete.changesSinceLastBackup).toBe(2);
+
+    const afterUndo = await restoreDeletedTransactionAtomic(db, txRecord);
+    expect(afterUndo.changesSinceLastBackup).toBe(1);
+
+    const state = await loadAppState(db);
+    expect(state.transactions).toEqual([txRecord]);
+
+    // Clamps at 0 when changesSinceLastBackup is already 0
+    await saveSettings(db, { changesSinceLastBackup: 0 });
+    const clamped = await restoreDeletedTransactionAtomic(
+      db,
+      makeTransaction({ id: 'tx-undo-2', accountId: 'acc-1' })
+    );
+    expect(clamped.changesSinceLastBackup).toBe(0);
   });
 });
