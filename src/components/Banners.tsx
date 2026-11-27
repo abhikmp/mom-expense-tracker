@@ -16,14 +16,17 @@ export function Banners() {
     statusToastTone,
     storageError,
     backupDismissed,
+    isLocked,
+    lastDeletedTx,
     navigate,
     dismissToast,
     dismissSaveBanner,
     dismissBackupReminder,
+    undoDeleteTransaction,
   } = useApp();
 
   const backupCheck =
-    view === 'home' && !backupDismissed
+    view === 'home' && !backupDismissed && !isLocked
       ? isBackupReminderDue(settings, accounts, transactions)
       : { due: false, daysSince: 0 };
 
@@ -48,6 +51,15 @@ export function Banners() {
             <span>{statusToast}</span>
           </div>
           <div className="banner-actions">
+            {lastDeletedTx && (
+              <button
+                type="button"
+                className="btn btn-danger-fill btn-sm"
+                onClick={() => void undoDeleteTransaction().catch(() => {})}
+              >
+                Undo
+              </button>
+            )}
             <button type="button" className="btn btn-secondary btn-sm" onClick={dismissToast}>
               Close
             </button>

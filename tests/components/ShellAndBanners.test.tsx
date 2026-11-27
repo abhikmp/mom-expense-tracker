@@ -18,7 +18,9 @@ import {
   markBackupOrExportCompleted,
   openAppDb,
   saveAccount,
+  saveSecurityRecord,
 } from '../../src/storage/db';
+import { hashSecret } from '../../src/security/crypto';
 import * as csvModule from '../../src/export/csv';
 
 let dbCounter = 0;
@@ -58,6 +60,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.useRealTimers();
+  Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
   cleanup();
   vi.restoreAllMocks();
 });
@@ -533,7 +536,7 @@ describe('Banners and AppContext state flows', () => {
     expect(screen.queryByText('No bank accounts added yet')).not.toBeInTheDocument();
   });
 
-  it('auto-dismisses save banner after 4s and success toasts after 3s while keeping error banners manual', async () => {
+  it('auto-dismisses save banner after 2s and success toasts after 2s while keeping error banners manual', async () => {
     const dbName = nextDbName();
     const db = await openAppDb(dbName);
     await saveAccount(db, {
@@ -564,7 +567,7 @@ describe('Banners and AppContext state flows', () => {
     expect(screen.getByText(/Saved Groceries \(₹500\) to SBI Savings\./)).toBeInTheDocument();
 
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(3900);
+      await vi.advanceTimersByTimeAsync(1900);
     });
     expect(screen.getByText(/Saved Groceries \(₹500\) to SBI Savings\./)).toBeInTheDocument();
 
@@ -577,7 +580,7 @@ describe('Banners and AppContext state flows', () => {
     expect(screen.getByText('Updated entry.')).toBeInTheDocument();
 
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(2900);
+      await vi.advanceTimersByTimeAsync(1900);
     });
     expect(screen.getByText('Updated entry.')).toBeInTheDocument();
 
@@ -593,6 +596,391 @@ describe('Banners and AppContext state flows', () => {
       await vi.advanceTimersByTimeAsync(5000);
     });
     expect(screen.getByText('Something failed.')).toBeInTheDocument();
+  });
+
+  function LockAndDeleteHarness() {
+    const app = useApp();
+    return (
+      <div>
+        <div data-testid="loading">{String(app.loading)}</div>
+        <div data-testid="view">{app.view}</div>
+        <div data-testid="selected-bank">{app.selectedBankId ?? 'none'}</div>
+        <div data-testid="tx-count">{app.transactions.length}</div>
+        <div data-testid="has-pin">{String(app.hasPin)}</div>
+        <div data-testid="is-unlocked">{String(app.isUnlocked)}</div>
+        <div data-testid="is-locked">{String(app.isLocked)}</div>
+        <div data-testid="last-deleted">{app.lastDeletedTx?.id ?? 'none'}</div>
+        <div data-testid="failed-attempts">{app.failedPinAttempts}</div>
+        <div data-testid="pin-cooldown">{app.pinCooldownUntil}</div>
+        <Banners />
+        <button type="button" onClick={() => void app.deleteTransaction('tx-1')}>
+          Delete Tx 1
+        </button>
+        <button type="button" onClick={() => app.navigate('record')}>
+          Go Record
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            void app.recordTransaction({
+              type: 'expense',
+              direction: 'outgoing',
+              amountPaise: 50000,
+              accountId: 'acc-1',
+              categoryId: 'cat-groceries',
+              mode: 'GPay',
+              date: '2026-11-26',
+              note: 'Milk',
+            })
+          }
+        >
+          Save Locked Tx
+        </button>
+        <button type="button" onClick={() => void app.verifyPinAndUnlock('1234')}>
+          Unlock With Valid PIN
+        </button>
+        <button type="button" onClick={() => void app.verifyPinAndUnlock('9999')}>
+          Unlock With Wrong PIN
+        </button>
+        <button type="button" onClick={() => app.openBankHistory('acc-1')}>
+          Open Bank History
+        </button>
+        <button type="button" onClick={() => app.navigate('all')}>
+          Go All
+        </button>
+        <button type="button" onClick={() => app.lockApp('Locked manually.')}>
+          Lock App
+        </button>
+      </div>
+    );
+  }
+
+  it('shows red delete toast with Undo for 4s and restores transaction in state and IndexedDB when Undo is clicked', async () => {
+    const dbName = nextDbName();
+    const db = await openAppDb(dbName);
+    await saveAccount(db, {
+      id: 'acc-1',
+      name: 'SBI Savings',
+      startingBalancePaise: 500_000,
+      createdAt: '2026-11-01T08:00:00.000Z',
+      archived: false,
+    });
+    await createTransactionAtomic(db, makeTx({ id: 'tx-1' }));
+    db.close();
+
+    render(
+      <AppProvider dbName={dbName}>
+        <LockAndDeleteHarness />
+      </AppProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('loading')).toHaveTextContent('false');
+    });
+    expect(screen.getByTestId('tx-count')).toHaveTextContent('1');
+
+    vi.useFakeTimers();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Tx 1' }));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(50);
+    });
+
+    const deleteBanner = screen.getByRole('status');
+    expect(deleteBanner).toHaveClass('banner-error');
+    expect(deleteBanner).toHaveTextContent('Transaction deleted and balances updated.');
+    expect(screen.getByRole('button', { name: 'Undo' })).toBeInTheDocument();
+    expect(screen.getByTestId('tx-count')).toHaveTextContent('0');
+
+    // Auto-dismisses at 4000 ms (visible at 3900 ms, dismissed after +100 ms)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3900);
+    });
+    expect(screen.getByText('Transaction deleted and balances updated.')).toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(100);
+    });
+    expect(screen.queryByText('Transaction deleted and balances updated.')).not.toBeInTheDocument();
+
+    vi.useRealTimers();
+  });
+
+  it('restores deleted transaction via Undo button and shows 2s restored toast', async () => {
+    const dbName = nextDbName();
+    const db = await openAppDb(dbName);
+    await saveAccount(db, {
+      id: 'acc-1',
+      name: 'SBI Savings',
+      startingBalancePaise: 500_000,
+      createdAt: '2026-11-01T08:00:00.000Z',
+      archived: false,
+    });
+    await createTransactionAtomic(db, makeTx({ id: 'tx-1', note: 'Undo target' }));
+    db.close();
+
+    render(
+      <AppProvider dbName={dbName}>
+        <LockAndDeleteHarness />
+      </AppProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('loading')).toHaveTextContent('false');
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Tx 1' }));
+    await waitFor(() => {
+      expect(screen.getByText('Transaction deleted and balances updated.')).toBeInTheDocument();
+    });
+    expect(screen.getByTestId('tx-count')).toHaveTextContent('0');
+
+    vi.useFakeTimers();
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(50);
+    });
+    expect(screen.getByText('Transaction restored and balances updated.')).toBeInTheDocument();
+    expect(screen.getByTestId('tx-count')).toHaveTextContent('1');
+    expect(screen.getByTestId('last-deleted')).toHaveTextContent('none');
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1900);
+    });
+    expect(screen.getByText('Transaction restored and balances updated.')).toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(100);
+    });
+    expect(screen.queryByText('Transaction restored and balances updated.')).not.toBeInTheDocument();
+
+    vi.useRealTimers();
+    const verifyDb = await openAppDb(dbName);
+    const restored = await verifyDb.get('transactions', 'tx-1');
+    verifyDb.close();
+    expect(restored?.note).toBe('Undo target');
+  });
+
+  it('hides backup reminder while locked, keeps record view on save while locked, unlocks silently, and auto-locks only after > 60s in background', async () => {
+    const dbName = nextDbName();
+    const db = await openAppDb(dbName);
+    await saveAccount(db, {
+      id: 'acc-1',
+      name: 'SBI Savings',
+      startingBalancePaise: 500_000,
+      createdAt: '2026-11-01T08:00:00.000Z',
+      archived: false,
+    });
+    await createTransactionAtomic(db, makeTx({ id: 'tx-1' }));
+    await markBackupOrExportCompleted(db, new Date(Date.now() - 35 * 86_400_000).toISOString());
+    await saveSecurityRecord(db, {
+      key: 'lock',
+      pinHash: await hashSecret('1234'),
+      masterPasswordHash: await hashSecret('mom-master-pw'),
+      updatedAt: '2026-11-26T09:00:00.000Z',
+    });
+    db.close();
+
+    render(
+      <AppProvider dbName={dbName}>
+        <LockAndDeleteHarness />
+      </AppProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('loading')).toHaveTextContent('false');
+    });
+
+    // Locked initially when security record exists
+    expect(screen.getByTestId('has-pin')).toHaveTextContent('true');
+    expect(screen.getByTestId('is-unlocked')).toHaveTextContent('false');
+    expect(screen.getByTestId('is-locked')).toHaveTextContent('true');
+
+    // Backup reminder is hidden while locked
+    expect(screen.queryByRole('region', { name: 'Backup reminder' })).not.toBeInTheDocument();
+
+    // recordTransaction while locked stays on 'record' instead of navigating to 'home'
+    fireEvent.click(screen.getByRole('button', { name: 'Go Record' }));
+    expect(screen.getByTestId('view')).toHaveTextContent('record');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save Locked Tx' }));
+    await waitFor(() => {
+      expect(screen.getByTestId('tx-count')).toHaveTextContent('2');
+    });
+    expect(screen.getByTestId('view')).toHaveTextContent('record');
+
+    // Unlocking succeeds silently (no "Unlocked for this session." toast) and reveals backup reminder on home
+    fireEvent.click(screen.getByRole('button', { name: 'Unlock With Valid PIN' }));
+    await waitFor(() => {
+      expect(screen.getByTestId('is-locked')).toHaveTextContent('false');
+    });
+    expect(screen.queryByText('Unlocked for this session.')).not.toBeInTheDocument();
+
+    // Navigate to bank-tx and delete tx-1 so lastDeletedTx is populated
+    fireEvent.click(screen.getByRole('button', { name: 'Open Bank History' }));
+    expect(screen.getByTestId('view')).toHaveTextContent('bank-tx');
+    expect(screen.getByTestId('selected-bank')).toHaveTextContent('acc-1');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Tx 1' }));
+    await waitFor(() => {
+      expect(screen.getByTestId('last-deleted')).toHaveTextContent('tx-1');
+    });
+
+    vi.useFakeTimers();
+
+    // Background for exactly 60_000 ms -> stays unlocked
+    act(() => {
+      Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000);
+    });
+
+    act(() => {
+      Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+
+    expect(screen.getByTestId('is-locked')).toHaveTextContent('false');
+    expect(screen.getByTestId('view')).toHaveTextContent('bank-tx');
+
+    // Background for 60_001 ms -> auto-locks, resets bank-tx to home, clears selectedBankId & lastDeletedTx
+    act(() => {
+      Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_001);
+    });
+
+    act(() => {
+      Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+
+    expect(screen.getByTestId('is-locked')).toHaveTextContent('true');
+    expect(screen.getByTestId('view')).toHaveTextContent('home');
+    expect(screen.getByTestId('selected-bank')).toHaveTextContent('none');
+    expect(screen.getByTestId('last-deleted')).toHaveTextContent('none');
+    expect(screen.getByText('Auto-locked after being away for over 1 minute.')).toBeInTheDocument();
+  });
+
+  function PinLifecycleHarness() {
+    const app = useApp();
+    return (
+      <div>
+        <div data-testid="loading">{String(app.loading)}</div>
+        <div data-testid="view">{app.view}</div>
+        <div data-testid="has-pin">{String(app.hasPin)}</div>
+        <div data-testid="is-unlocked">{String(app.isUnlocked)}</div>
+        <div data-testid="is-locked">{String(app.isLocked)}</div>
+        <div data-testid="modal-mode">{app.pinModalMode ?? 'none'}</div>
+        <div data-testid="failed-attempts">{app.failedPinAttempts}</div>
+        <div data-testid="cooldown-active">{String(app.pinCooldownUntil > 0)}</div>
+        <Banners />
+        <button type="button" onClick={() => app.openPinModal('setup')}>
+          Open Setup
+        </button>
+        <button type="button" onClick={() => app.closePinModal()}>
+          Close Modal
+        </button>
+        <button type="button" onClick={() => void app.setupPin('1234', 'master-pass-1')}>
+          Setup PIN
+        </button>
+        <button type="button" onClick={() => void app.verifyPinAndUnlock('9999')}>
+          Wrong PIN
+        </button>
+        <button type="button" onClick={() => void app.verifyMasterAndProceed('master-pass-1')}>
+          Verify Master
+        </button>
+        <button type="button" onClick={() => void app.resetPinAfterMaster('5678')}>
+          Reset PIN
+        </button>
+        <button type="button" onClick={() => void app.changePin('5678', '4321')}>
+          Change PIN
+        </button>
+        <button type="button" onClick={() => void app.disablePin('4321')}>
+          Disable PIN
+        </button>
+        <button type="button" onClick={() => app.navigate('all')}>
+          Go All
+        </button>
+        <button type="button" onClick={() => app.lockApp('Locked manually.')}>
+          Lock App
+        </button>
+      </div>
+    );
+  }
+
+  it('supports PIN setup, 5-attempt cooldown, master password recovery, change, disable, and lockApp from all view', async () => {
+    const dbName = nextDbName();
+    render(
+      <AppProvider dbName={dbName}>
+        <PinLifecycleHarness />
+      </AppProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('loading')).toHaveTextContent('false');
+    });
+    expect(screen.getByTestId('has-pin')).toHaveTextContent('false');
+    expect(screen.getByTestId('is-locked')).toHaveTextContent('false');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Setup' }));
+    expect(screen.getByTestId('modal-mode')).toHaveTextContent('setup');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Setup PIN' }));
+    await waitFor(() => {
+      expect(screen.getByTestId('has-pin')).toHaveTextContent('true');
+    });
+    expect(screen.getByTestId('is-unlocked')).toHaveTextContent('true');
+    expect(screen.getByTestId('modal-mode')).toHaveTextContent('none');
+
+    // Navigate to 'all' and manually lock -> returns to 'home'
+    fireEvent.click(screen.getByRole('button', { name: 'Go All' }));
+    expect(screen.getByTestId('view')).toHaveTextContent('all');
+    fireEvent.click(screen.getByRole('button', { name: 'Lock App' }));
+    expect(screen.getByTestId('is-locked')).toHaveTextContent('true');
+    expect(screen.getByTestId('view')).toHaveTextContent('home');
+
+    // 5 wrong PINs trigger cooldown
+    for (let i = 1; i <= 5; i += 1) {
+      fireEvent.click(screen.getByRole('button', { name: 'Wrong PIN' }));
+      await waitFor(() => {
+        expect(screen.getByTestId('failed-attempts')).toHaveTextContent(String(i));
+      });
+    }
+    expect(screen.getByTestId('cooldown-active')).toHaveTextContent('true');
+
+    // Master password verification resets attempts & cooldown and opens 'reset-pin'
+    fireEvent.click(screen.getByRole('button', { name: 'Verify Master' }));
+    await waitFor(() => {
+      expect(screen.getByTestId('modal-mode')).toHaveTextContent('reset-pin');
+    });
+    expect(screen.getByTestId('failed-attempts')).toHaveTextContent('0');
+    expect(screen.getByTestId('cooldown-active')).toHaveTextContent('false');
+
+    // Reset PIN unlocks app
+    fireEvent.click(screen.getByRole('button', { name: 'Reset PIN' }));
+    await waitFor(() => {
+      expect(screen.getByTestId('is-locked')).toHaveTextContent('false');
+    });
+    expect(screen.getByTestId('modal-mode')).toHaveTextContent('none');
+
+    // Change PIN and then disable PIN
+    fireEvent.click(screen.getByRole('button', { name: 'Change PIN' }));
+    await waitFor(() => {
+      expect(screen.getByText('PIN changed.')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Disable PIN' }));
+    await waitFor(() => {
+      expect(screen.getByTestId('has-pin')).toHaveTextContent('false');
+    });
+    expect(screen.getByTestId('is-locked')).toHaveTextContent('false');
   });
 });
 
