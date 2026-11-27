@@ -369,6 +369,46 @@ describe('PIN Lock view gating', () => {
     expect(screen.getByRole('dialog', { name: 'Turn Off PIN Lock' })).toBeInTheDocument();
   });
 
+  it('clears ManageView restoreError when locking and unlocking again', async () => {
+    const user = userEvent.setup();
+    const dbName = nextDbName();
+    await seedAppData(dbName, { withPin: true });
+
+    render(
+      <AppProvider dbName={dbName}>
+        <DirectLockedViewHarness targetView="manage" />
+      </AppProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('loading')).not.toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Trigger Unlock' }));
+    await waitFor(() => {
+      expect(screen.getByRole('region', { name: 'Backup and Restore' })).toBeInTheDocument();
+    });
+
+    const fileInput = document.getElementById('restore-file-input') as HTMLInputElement;
+    const badFile = new File(['{invalid json'], 'bad-backup.json', { type: 'application/json' });
+    await user.upload(fileInput, badFile);
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent('Could not read backup JSON file.');
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Trigger Lock' }));
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Accounts & exports are hidden' })).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Trigger Unlock' }));
+    await waitFor(() => {
+      expect(screen.getByRole('region', { name: 'Backup and Restore' })).toBeInTheDocument();
+    });
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
   it('shows PIN Lock Off + Set Up PIN when no PIN is configured and keeps existing views unlocked', async () => {
     const user = userEvent.setup();
     const dbName = nextDbName();

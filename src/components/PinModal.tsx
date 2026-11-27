@@ -50,6 +50,16 @@ function PinInputField({
         value={value}
         disabled={disabled}
         onChange={(event) => onChange(sanitizePinInput(event.target.value))}
+        onPaste={(event) => {
+          const pasted = event.clipboardData?.getData('text');
+          if (pasted === undefined) return;
+          event.preventDefault();
+          const input = event.currentTarget;
+          const start = input.selectionStart ?? value.length;
+          const end = input.selectionEnd ?? value.length;
+          const merged = value.slice(0, start) + pasted + value.slice(end);
+          onChange(sanitizePinInput(merged));
+        }}
       />
     </div>
   );
@@ -136,6 +146,7 @@ export function PinModal() {
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [now, setNow] = useState(() => Date.now());
+  const [forgotOrigin, setForgotOrigin] = useState<'unlock' | 'change'>('unlock');
 
   const curPinRef = useRef<HTMLInputElement | null>(null);
   const pin1Ref = useRef<HTMLInputElement | null>(null);
@@ -154,6 +165,9 @@ export function PinModal() {
     setError('');
     setSubmitting(false);
     setNow(Date.now());
+    if (!pinModalMode) {
+      setForgotOrigin('unlock');
+    }
   }, [pinModalMode]);
 
   useEffect(() => {
@@ -219,6 +233,8 @@ export function PinModal() {
           setNow(Date.now());
           pin1Ref.current?.focus();
         }
+      } catch {
+        setError('Could not verify credentials. Please try again.');
       } finally {
         setSubmitting(false);
       }
@@ -239,6 +255,8 @@ export function PinModal() {
           setMasterInput('');
           master1Ref.current?.focus();
         }
+      } catch {
+        setError('Could not verify credentials. Please try again.');
       } finally {
         setSubmitting(false);
       }
@@ -260,9 +278,12 @@ export function PinModal() {
       }
       setSubmitting(true);
       try {
-        await resetPinAfterMaster(pin1);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Could not update PIN. Please try again.');
+        const res = await resetPinAfterMaster(pin1);
+        if (!res.ok) {
+          setError(res.error);
+        }
+      } catch {
+        setError('Could not update PIN. Please try again.');
       } finally {
         setSubmitting(false);
       }
@@ -296,11 +317,12 @@ export function PinModal() {
       }
       setSubmitting(true);
       try {
-        await setupPin(pin1, masterInput);
-      } catch (err) {
-        setError(
-          err instanceof Error ? err.message : 'Could not save PIN lock settings. Please try again.'
-        );
+        const res = await setupPin(pin1, masterInput);
+        if (!res.ok) {
+          setError(res.error);
+        }
+      } catch {
+        setError('Could not save PIN lock settings. Please try again.');
       } finally {
         setSubmitting(false);
       }
@@ -336,6 +358,8 @@ export function PinModal() {
           setNow(Date.now());
           curPinRef.current?.focus();
         }
+      } catch {
+        setError('Could not update PIN. Please try again.');
       } finally {
         setSubmitting(false);
       }
@@ -359,6 +383,8 @@ export function PinModal() {
           setNow(Date.now());
           curPinRef.current?.focus();
         }
+      } catch {
+        setError('Could not turn off PIN lock. Please try again.');
       } finally {
         setSubmitting(false);
       }
@@ -531,7 +557,7 @@ export function PinModal() {
             <button
               type="button"
               className="btn btn-secondary"
-              onClick={() => openPinModal('unlock')}
+              onClick={() => openPinModal(forgotOrigin)}
             >
               Back
             </button>
@@ -596,7 +622,10 @@ export function PinModal() {
             <button
               type="button"
               className="link-btn"
-              onClick={() => openPinModal('forgot-master')}
+              onClick={() => {
+                setForgotOrigin(pinModalMode === 'change' ? 'change' : 'unlock');
+                openPinModal('forgot-master');
+              }}
             >
               Forgot PIN?
             </button>

@@ -59,7 +59,10 @@ export function AppShell() {
           navigate('record');
         }}
       />
-      <EditTransactionDialog txId={editingTxId} onClose={() => setEditingTxId(null)} />
+      <EditTransactionDialog
+        txId={isLocked ? null : editingTxId}
+        onClose={() => setEditingTxId(null)}
+      />
       <PinModal />
     </div>
   );

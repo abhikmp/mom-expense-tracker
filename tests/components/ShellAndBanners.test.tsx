@@ -661,6 +661,9 @@ describe('Banners and AppContext state flows', () => {
         <button type="button" onClick={() => app.lockApp('Locked manually.')}>
           Lock App
         </button>
+        <button type="button" onClick={() => app.lockApp()}>
+          Lock App Silent
+        </button>
       </div>
     );
   }
@@ -967,6 +970,9 @@ describe('Banners and AppContext state flows', () => {
         <button type="button" onClick={() => app.lockApp('Locked manually.')}>
           Lock App
         </button>
+        <button type="button" onClick={() => app.lockApp()}>
+          Lock App Silent
+        </button>
       </div>
     );
   }
@@ -1014,20 +1020,21 @@ describe('Banners and AppContext state flows', () => {
     }
     expect(screen.getByTestId('cooldown-active')).toHaveTextContent('true');
 
-    // Master password verification resets attempts & cooldown and opens 'reset-pin'
+    // Master password verification unlocks app, resets attempts & cooldown, and opens 'reset-pin'
     fireEvent.click(screen.getByRole('button', { name: 'Verify Master' }));
     await waitFor(() => {
       expect(screen.getByTestId('modal-mode')).toHaveTextContent('reset-pin');
     });
+    expect(screen.getByTestId('is-locked')).toHaveTextContent('false');
     expect(screen.getByTestId('failed-attempts')).toHaveTextContent('0');
     expect(screen.getByTestId('cooldown-active')).toHaveTextContent('false');
 
-    // Reset PIN unlocks app
+    // Reset PIN closes modal and updates PIN
     fireEvent.click(screen.getByRole('button', { name: 'Reset PIN' }));
     await waitFor(() => {
-      expect(screen.getByTestId('is-locked')).toHaveTextContent('false');
+      expect(screen.getByTestId('modal-mode')).toHaveTextContent('none');
     });
-    expect(screen.getByTestId('modal-mode')).toHaveTextContent('none');
+    expect(screen.getByTestId('is-locked')).toHaveTextContent('false');
 
     // Change PIN and then disable PIN
     fireEvent.click(screen.getByRole('button', { name: 'Change PIN' }));
@@ -1040,6 +1047,53 @@ describe('Banners and AppContext state flows', () => {
       expect(screen.getByTestId('has-pin')).toHaveTextContent('false');
     });
     expect(screen.getByTestId('is-locked')).toHaveTextContent('false');
+  });
+
+  it('clears stale delete toast when lockApp() is called without a toastMessage', async () => {
+    const dbName = nextDbName();
+    const db = await openAppDb(dbName);
+    await saveAccount(db, {
+      id: 'acc-1',
+      name: 'SBI Savings',
+      startingBalancePaise: 500_000,
+      createdAt: '2026-11-01T08:00:00.000Z',
+      archived: false,
+    });
+    await createTransactionAtomic(db, makeTx({ id: 'tx-1' }));
+    await saveSecurityRecord(db, {
+      key: 'lock',
+      pinHash: await hashSecret('1234'),
+      masterPasswordHash: await hashSecret('mom-master-pw'),
+      updatedAt: '2026-11-26T09:00:00.000Z',
+    });
+    db.close();
+
+    render(
+      <AppProvider dbName={dbName}>
+        <LockAndDeleteHarness />
+      </AppProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('loading')).toHaveTextContent('false');
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Unlock With Valid PIN' }));
+    await waitFor(() => {
+      expect(screen.getByTestId('is-locked')).toHaveTextContent('false');
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Tx 1' }));
+    await waitFor(() => {
+      expect(screen.getByText('Transaction deleted and balances updated.')).toBeInTheDocument();
+    });
+    expect(screen.getByRole('button', { name: 'Undo' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Lock App Silent' }));
+    expect(screen.getByTestId('is-locked')).toHaveTextContent('true');
+    expect(screen.getByTestId('last-deleted')).toHaveTextContent('none');
+    expect(screen.queryByText('Transaction deleted and balances updated.')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Undo' })).not.toBeInTheDocument();
   });
 });
 

@@ -61,4 +61,23 @@ describe('hashSecret and verifySecret', () => {
     await expect(verifySecret('My Mom Pass! 2026', passwordHash)).resolves.toBe(true);
     await expect(verifySecret('wrong-password', passwordHash)).resolves.toBe(false);
   });
+
+  it('returns false cleanly on malformed SaltedHash records instead of throwing', async () => {
+    const valid = await hashSecret('1234');
+
+    await expect(verifySecret('1234', { ...valid, algorithm: 'SHA-1' as 'PBKDF2-SHA256' })).resolves.toBe(
+      false
+    );
+    await expect(verifySecret('1234', { ...valid, iterations: 0 })).resolves.toBe(false);
+    await expect(verifySecret('1234', { ...valid, iterations: -10 })).resolves.toBe(false);
+    await expect(verifySecret('1234', { ...valid, iterations: Number.NaN })).resolves.toBe(false);
+    await expect(verifySecret('1234', { ...valid, iterations: 1.5 })).resolves.toBe(false);
+    await expect(verifySecret('1234', { ...valid, iterations: Number.POSITIVE_INFINITY })).resolves.toBe(
+      false
+    );
+    await expect(verifySecret('1234', { ...valid, saltB64: '!!!not-base64!!!' })).resolves.toBe(false);
+    await expect(verifySecret('1234', { ...valid, hashB64: '!!!not-base64!!!' })).resolves.toBe(false);
+    await expect(verifySecret('1234', { ...valid, saltB64: '' })).resolves.toBe(false);
+    await expect(verifySecret('1234', { ...valid, hashB64: '' })).resolves.toBe(false);
+  });
 });

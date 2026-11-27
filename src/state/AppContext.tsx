@@ -111,8 +111,11 @@ export interface AppContextValue {
   verifyMasterAndProceed: (
     masterPassword: string
   ) => Promise<{ ok: true } | { ok: false; error: string }>;
-  setupPin: (pin: string, masterPassword: string) => Promise<void>;
-  resetPinAfterMaster: (newPin: string) => Promise<void>;
+  setupPin: (
+    pin: string,
+    masterPassword: string
+  ) => Promise<{ ok: true } | { ok: false; error: string }>;
+  resetPinAfterMaster: (newPin: string) => Promise<{ ok: true } | { ok: false; error: string }>;
   changePin: (
     currentPin: string,
     newPin: string
@@ -398,9 +401,11 @@ export function AppProvider({
       }
       if (toastMessage) {
         showToast(toastMessage, 'success', 2000);
+      } else {
+        dismissToast();
       }
     },
-    [showToast, view]
+    [dismissToast, showToast, view]
   );
 
   useEffect(() => {
@@ -572,9 +577,6 @@ export function AppProvider({
           );
           setSettings(nextSettings);
           showToast('Transaction restored and balances updated.', 'success');
-        },
-        () => {
-          setLastDeletedTx(txToRestore);
         }
       );
     } finally {
@@ -601,20 +603,24 @@ export function AppProvider({
       if (!check.valid) {
         return { ok: false, error: check.error };
       }
-      const matched = await verifySecret(pin, securityRecord.pinHash);
-      if (!matched) {
-        const nextAttempts = failedPinAttempts + 1;
-        setFailedPinAttempts(nextAttempts);
-        if (nextAttempts >= 5) {
-          setPinCooldownUntil(Date.now() + 30_000);
-          return {
-            ok: false,
-            error: 'Too many wrong PINs. Please wait 30 seconds or use your Master Password.',
-          };
+      try {
+        const matched = await verifySecret(pin, securityRecord.pinHash);
+        if (!matched) {
+          const nextAttempts = failedPinAttempts + 1;
+          setFailedPinAttempts(nextAttempts);
+          if (nextAttempts >= 5) {
+            setPinCooldownUntil(Date.now() + 30_000);
+            return {
+              ok: false,
+              error: 'Too many wrong PINs. Please wait 30 seconds or use your Master Password.',
+            };
+          }
+          return { ok: false, error: wrongPinMessage };
         }
-        return { ok: false, error: wrongPinMessage };
+        return { ok: true, record: securityRecord };
+      } catch {
+        return { ok: false, error: 'Could not verify credentials. Please try again.' };
       }
-      return { ok: true, record: securityRecord };
     },
     [failedPinAttempts, pinCooldownUntil, securityRecord]
   );
@@ -643,29 +649,38 @@ export function AppProvider({
       if (!masterPassword) {
         return { ok: false, error: 'Please enter your Master Password.' };
       }
-      const matched = await verifySecret(masterPassword, securityRecord.masterPasswordHash);
-      if (!matched) {
-        return { ok: false, error: 'Incorrect Master Password. Please try again.' };
+      try {
+        const matched = await verifySecret(masterPassword, securityRecord.masterPasswordHash);
+        if (!matched) {
+          return { ok: false, error: 'Incorrect Master Password. Please try again.' };
+        }
+        setFailedPinAttempts(0);
+        setPinCooldownUntil(0);
+        setIsUnlocked(true);
+        backgroundedAtRef.current = null;
+        setPinModalMode('reset-pin');
+        return { ok: true };
+      } catch {
+        return { ok: false, error: 'Could not verify credentials. Please try again.' };
       }
-      setFailedPinAttempts(0);
-      setPinCooldownUntil(0);
-      setPinModalMode('reset-pin');
-      return { ok: true };
     },
     [securityRecord]
   );
 
   const setupPin = useCallback(
-    async (pin: string, masterPassword: string): Promise<void> => {
+    async (
+      pin: string,
+      masterPassword: string
+    ): Promise<{ ok: true } | { ok: false; error: string }> => {
       const pinCheck = validatePin(pin);
       if (!pinCheck.valid) {
-        throw new Error(pinCheck.error);
+        return { ok: false, error: pinCheck.error };
       }
       const pwCheck = validateMasterPassword(masterPassword);
       if (!pwCheck.valid) {
-        throw new Error(pwCheck.error);
+        return { ok: false, error: pwCheck.error };
       }
-      await runWithErrorToast('Could not save PIN lock settings. Please try again.', async () => {
+      try {
         const [pinHash, masterPasswordHash] = await Promise.all([
           hashSecret(pin),
           hashSecret(masterPassword),
@@ -680,25 +695,29 @@ export function AppProvider({
         await saveSecurityRecord(db, record);
         setSecurityRecord(record);
         setIsUnlocked(true);
+        backgroundedAtRef.current = null;
         setFailedPinAttempts(0);
         setPinCooldownUntil(0);
         setPinModalMode(null);
         showToast('PIN lock enabled.', 'success');
-      });
+        return { ok: true };
+      } catch {
+        return { ok: false, error: 'Could not save PIN lock settings. Please try again.' };
+      }
     },
-    [getDb, runWithErrorToast, showToast]
+    [getDb, showToast]
   );
 
   const resetPinAfterMaster = useCallback(
-    async (newPin: string): Promise<void> => {
+    async (newPin: string): Promise<{ ok: true } | { ok: false; error: string }> => {
       const pinCheck = validatePin(newPin);
       if (!pinCheck.valid) {
-        throw new Error(pinCheck.error);
+        return { ok: false, error: pinCheck.error };
       }
       if (!securityRecord) {
-        throw new Error('PIN lock is not set up.');
+        return { ok: false, error: 'PIN lock is not set up.' };
       }
-      await runWithErrorToast('Could not update PIN. Please try again.', async () => {
+      try {
         const pinHash = await hashSecret(newPin);
         const updated: SecurityRecord = {
           ...securityRecord,
@@ -709,13 +728,17 @@ export function AppProvider({
         await saveSecurityRecord(db, updated);
         setSecurityRecord(updated);
         setIsUnlocked(true);
+        backgroundedAtRef.current = null;
         setFailedPinAttempts(0);
         setPinCooldownUntil(0);
         setPinModalMode(null);
         showToast('PIN updated and app unlocked.', 'success');
-      });
+        return { ok: true };
+      } catch {
+        return { ok: false, error: 'Could not update PIN. Please try again.' };
+      }
     },
-    [getDb, runWithErrorToast, securityRecord, showToast]
+    [getDb, securityRecord, showToast]
   );
 
   const changePin = useCallback(
@@ -741,6 +764,8 @@ export function AppProvider({
         const db = await getDb();
         await saveSecurityRecord(db, updated);
         setSecurityRecord(updated);
+        setIsUnlocked(true);
+        backgroundedAtRef.current = null;
         setFailedPinAttempts(0);
         setPinCooldownUntil(0);
         setPinModalMode(null);
@@ -764,6 +789,7 @@ export function AppProvider({
         await deleteSecurityRecord(db);
         setSecurityRecord(null);
         setIsUnlocked(false);
+        backgroundedAtRef.current = null;
         setFailedPinAttempts(0);
         setPinCooldownUntil(0);
         setPinModalMode(null);

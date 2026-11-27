@@ -5,8 +5,11 @@ import userEvent from '@testing-library/user-event';
 import { AppProvider, useApp } from '../../src/state/AppContext';
 import { LockedCard } from '../../src/components/LockedCard';
 import { PinModal } from '../../src/components/PinModal';
-import { hashSecret } from '../../src/security/crypto';
-import { loadSecurityRecord, openAppDb, saveSecurityRecord } from '../../src/storage/db';
+import * as cryptoModule from '../../src/security/crypto';
+import * as dbModule from '../../src/storage/db';
+
+const { hashSecret } = cryptoModule;
+const { loadSecurityRecord, openAppDb, saveSecurityRecord } = dbModule;
 
 let dbCounter = 0;
 
@@ -316,11 +319,12 @@ describe('PinModal', () => {
     });
     expect(masterInput.value).toBe('');
 
-    // Valid Master Password transitions to reset-pin
+    // Valid Master Password transitions to reset-pin AND unlocks the session immediately
     await user.type(masterInput, 'momsecret123');
     await user.click(within(masterDialog).getByRole('button', { name: 'Verify' }));
 
     const resetDialog = await screen.findByRole('dialog', { name: 'Set New PIN' });
+    expect(screen.getByTestId('is-unlocked')).toHaveTextContent('true');
     const newPin1 = within(resetDialog).getByLabelText('New PIN (4–6 digits)') as HTMLInputElement;
     const newPin2 = within(resetDialog).getByLabelText('Confirm New PIN') as HTMLInputElement;
 
@@ -401,6 +405,7 @@ describe('PinModal', () => {
     await waitFor(() => {
       expect(screen.queryByTestId('loading')).not.toBeInTheDocument();
     });
+    expect(screen.getByTestId('is-unlocked')).toHaveTextContent('false');
 
     await user.click(screen.getByRole('button', { name: 'Open Change' }));
     const dialog = screen.getByRole('dialog', { name: 'Change PIN' });
@@ -421,13 +426,14 @@ describe('PinModal', () => {
     });
     expect(curPin.value).toBe('');
 
-    // Correct current PIN + valid matching new PIN
+    // Correct current PIN + valid matching new PIN unlocks the session too
     await user.type(curPin, '1234');
     await user.click(within(dialog).getByRole('button', { name: 'Update PIN' }));
 
     await waitFor(() => {
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     });
+    expect(screen.getByTestId('is-unlocked')).toHaveTextContent('true');
     expect(screen.getByTestId('toast')).toHaveTextContent('PIN changed.');
   });
 
@@ -497,9 +503,13 @@ describe('PinModal', () => {
     // Focus moved into modal on open
     expect(pin1).toHaveFocus();
 
-    // Paste works on PIN (sanitizes non-digits) and Master Password
+    // Paste works on PIN (sanitizes non-digits and preserves 6 digits on padded pastes) and Master Password
     await user.paste('12a34b');
     expect(pin1.value).toBe('1234');
+
+    await user.clear(pin1);
+    await user.paste(' 567890 ');
+    expect(pin1.value).toBe('567890');
 
     master1.focus();
     await user.paste('my-secret-pw');
@@ -517,5 +527,153 @@ describe('PinModal', () => {
     await user.keyboard('{Escape}');
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(opener).toHaveFocus();
+  });
+
+  it('keeps session unlocked if user cancels or Escapes Set New PIN after Master Password verification', async () => {
+    const user = userEvent.setup();
+    const dbName = nextDbName();
+    await seedSecurity(dbName, '1234', 'momsecret123');
+
+    render(
+      <AppProvider dbName={dbName}>
+        <PinTestHarness />
+      </AppProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('loading')).not.toBeInTheDocument();
+    });
+    expect(screen.getByTestId('is-unlocked')).toHaveTextContent('false');
+
+    await user.click(screen.getByRole('button', { name: 'Unlock with PIN' }));
+    await user.click(screen.getByRole('button', { name: 'Forgot PIN?' }));
+    const masterDialog = screen.getByRole('dialog', { name: 'Verify Master Password' });
+    await user.type(within(masterDialog).getByLabelText('Master Password'), 'momsecret123');
+    await user.click(within(masterDialog).getByRole('button', { name: 'Verify' }));
+
+    await screen.findByRole('dialog', { name: 'Set New PIN' });
+    expect(screen.getByTestId('is-unlocked')).toHaveTextContent('true');
+
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByTestId('is-unlocked')).toHaveTextContent('true');
+  });
+
+  it('returns Back from Forgot PIN? to Change PIN when opened from Change PIN', async () => {
+    const user = userEvent.setup();
+    const dbName = nextDbName();
+    await seedSecurity(dbName, '1234', 'momsecret123');
+
+    render(
+      <AppProvider dbName={dbName}>
+        <PinTestHarness />
+      </AppProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('loading')).not.toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Open Change' }));
+    const changeDialog = screen.getByRole('dialog', { name: 'Change PIN' });
+    await user.click(within(changeDialog).getByRole('button', { name: 'Forgot PIN?' }));
+
+    const masterDialog = screen.getByRole('dialog', { name: 'Verify Master Password' });
+    await user.click(within(masterDialog).getByRole('button', { name: 'Back' }));
+
+    expect(screen.getByRole('dialog', { name: 'Change PIN' })).toBeInTheDocument();
+  });
+
+  it('surfaces crypto and storage failures inline in PinModal without leaving background error toasts', async () => {
+    const user = userEvent.setup();
+    const dbName = nextDbName();
+    await seedSecurity(dbName, '1234', 'momsecret123');
+
+    render(
+      <AppProvider dbName={dbName}>
+        <PinTestHarness />
+      </AppProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('loading')).not.toBeInTheDocument();
+    });
+
+    // verifySecret rejection during unlock shows inline error, no background toast
+    vi.spyOn(cryptoModule, 'verifySecret').mockRejectedValueOnce(new Error('subtle failure'));
+    await user.click(screen.getByRole('button', { name: 'Unlock with PIN' }));
+    const unlockDialog = screen.getByRole('dialog', { name: 'Unlock Financial Details' });
+    await user.type(within(unlockDialog).getByLabelText('PIN'), '1234');
+    await user.click(within(unlockDialog).getByRole('button', { name: 'Unlock' }));
+
+    await waitFor(() => {
+      expect(within(unlockDialog).getByRole('alert')).toHaveTextContent(
+        'Could not verify credentials. Please try again.'
+      );
+    });
+    expect(screen.getByTestId('toast')).toHaveTextContent('none');
+
+    // verifySecret rejection during forgot-master shows inline error, no background toast
+    vi.spyOn(cryptoModule, 'verifySecret').mockRejectedValueOnce(new Error('subtle failure'));
+    await user.click(within(unlockDialog).getByRole('button', { name: 'Forgot PIN?' }));
+    const masterDialog = screen.getByRole('dialog', { name: 'Verify Master Password' });
+    await user.type(within(masterDialog).getByLabelText('Master Password'), 'momsecret123');
+    await user.click(within(masterDialog).getByRole('button', { name: 'Verify' }));
+
+    await waitFor(() => {
+      expect(within(masterDialog).getByRole('alert')).toHaveTextContent(
+        'Could not verify credentials. Please try again.'
+      );
+    });
+    expect(screen.getByTestId('toast')).toHaveTextContent('none');
+
+    // Storage failure during reset-pin shows inline error, no background error toast
+    await user.type(within(masterDialog).getByLabelText('Master Password'), 'momsecret123');
+    await user.click(within(masterDialog).getByRole('button', { name: 'Verify' }));
+    const resetDialog = await screen.findByRole('dialog', { name: 'Set New PIN' });
+
+    vi.spyOn(dbModule, 'saveSecurityRecord').mockRejectedValueOnce(new Error('IndexedDB write failed'));
+    await user.type(within(resetDialog).getByLabelText('New PIN (4–6 digits)'), '5678');
+    await user.type(within(resetDialog).getByLabelText('Confirm New PIN'), '5678');
+    await user.click(within(resetDialog).getByRole('button', { name: 'Save New PIN' }));
+
+    await waitFor(() => {
+      expect(within(resetDialog).getByRole('alert')).toHaveTextContent(
+        'Could not update PIN. Please try again.'
+      );
+    });
+    expect(screen.getByTestId('toast')).toHaveTextContent('none');
+  });
+
+  it('surfaces storage failures inline in setup mode without leaving background error toasts', async () => {
+    const user = userEvent.setup();
+    const dbName = nextDbName();
+
+    render(
+      <AppProvider dbName={dbName}>
+        <PinTestHarness />
+      </AppProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('loading')).not.toBeInTheDocument();
+    });
+
+    vi.spyOn(dbModule, 'saveSecurityRecord').mockRejectedValueOnce(new Error('IndexedDB write failed'));
+    await user.click(screen.getByRole('button', { name: 'Open Setup' }));
+    const setupDialog = screen.getByRole('dialog', { name: 'Set Up PIN Lock' });
+
+    await user.type(within(setupDialog).getByLabelText('New PIN (4–6 digits)'), '1234');
+    await user.type(within(setupDialog).getByLabelText('Confirm PIN'), '1234');
+    await user.type(within(setupDialog).getByLabelText('Master Password (8+ characters)'), 'momsecret123');
+    await user.type(within(setupDialog).getByLabelText('Confirm Master Password'), 'momsecret123');
+    await user.click(within(setupDialog).getByRole('button', { name: 'Enable PIN Lock' }));
+
+    await waitFor(() => {
+      expect(within(setupDialog).getByRole('alert')).toHaveTextContent(
+        'Could not save PIN lock settings. Please try again.'
+      );
+    });
+    expect(screen.getByTestId('toast')).toHaveTextContent('none');
   });
 });

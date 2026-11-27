@@ -99,12 +99,30 @@ export async function hashSecret(secret: string): Promise<SaltedHash> {
  * Verifies a secret against a stored PBKDF2-SHA256 salted hash using constant-length XOR comparison.
  */
 export async function verifySecret(secret: string, stored: SaltedHash): Promise<boolean> {
-  if (stored.algorithm !== PBKDF2_ALGORITHM || stored.iterations <= 0) {
+  if (
+    !stored ||
+    stored.algorithm !== PBKDF2_ALGORITHM ||
+    !Number.isSafeInteger(stored.iterations) ||
+    stored.iterations <= 0 ||
+    typeof stored.saltB64 !== 'string' ||
+    typeof stored.hashB64 !== 'string'
+  ) {
     return false;
   }
 
-  const salt = fromBase64(stored.saltB64);
-  const expected = fromBase64(stored.hashB64);
+  let salt: Uint8Array;
+  let expected: Uint8Array;
+  try {
+    salt = fromBase64(stored.saltB64);
+    expected = fromBase64(stored.hashB64);
+  } catch {
+    return false;
+  }
+
+  if (salt.length === 0 || expected.length === 0) {
+    return false;
+  }
+
   const actual = await deriveKeyBytes(secret, salt, stored.iterations);
 
   if (actual.length !== expected.length) {

@@ -79,6 +79,7 @@ export function ManageView() {
     if (isLocked) {
       setArchiveConfirmAccountId(null);
       setRestoreConfirmPayload(null);
+      setRestoreError('');
     }
   }, [isLocked]);
 
