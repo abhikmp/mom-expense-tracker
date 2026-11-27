@@ -30,6 +30,7 @@ export function RecordView({ preselectedAccountId }: RecordViewProps = {}) {
     categories,
     transactions,
     settings,
+    isLocked,
     preselectedAccountId: contextPreselectedAccountId,
     clearPreselectedAccount,
     navigate,
@@ -206,7 +207,7 @@ export function RecordView({ preselectedAccountId }: RecordViewProps = {}) {
 
   return (
     <>
-      <TopBar title="Record Entry" />
+      <TopBar title="Record Entry" showLock />
 
       <div className="phone-scroll">
         <Banners />
@@ -316,7 +317,17 @@ export function RecordView({ preselectedAccountId }: RecordViewProps = {}) {
             </div>
 
             <div>
-              <span className="field-label">Bank Account</span>
+              <span className="field-label">
+                Bank Account
+                {isLocked && (
+                  <>
+                    {' '}
+                    <span className="sub-caption" style={{ display: 'inline', fontWeight: 500 }}>
+                      (balances hidden while locked)
+                    </span>
+                  </>
+                )}
+              </span>
               <div className="chip-wrap" role="group" aria-label="Bank Account">
                 {activeAccounts.map((acc) => (
                   <button
@@ -327,9 +338,11 @@ export function RecordView({ preselectedAccountId }: RecordViewProps = {}) {
                     onClick={() => handleAccountSelect(acc.id)}
                   >
                     <span>{acc.name}</span>
-                    <span className="num" style={{ opacity: 0.85, fontSize: '13px' }}>
-                      ({formatRupees(computeAccountBalancePaise(acc, transactions))})
-                    </span>
+                    {!isLocked && (
+                      <span className="num" style={{ opacity: 0.85, fontSize: '13px' }}>
+                        ({formatRupees(computeAccountBalancePaise(acc, transactions))})
+                      </span>
+                    )}
                   </button>
                 ))}
               </div>
