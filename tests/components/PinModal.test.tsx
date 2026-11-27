@@ -659,7 +659,7 @@ describe('PinModal', () => {
       expect(screen.queryByTestId('loading')).not.toBeInTheDocument();
     });
 
-    vi.spyOn(dbModule, 'saveSecurityRecord').mockRejectedValueOnce(new Error('IndexedDB write failed'));
+    vi.spyOn(dbModule, 'createSecurityRecordIfAbsent').mockRejectedValueOnce(new Error('IndexedDB write failed'));
     await user.click(screen.getByRole('button', { name: 'Open Setup' }));
     const setupDialog = screen.getByRole('dialog', { name: 'Set Up PIN Lock' });
 

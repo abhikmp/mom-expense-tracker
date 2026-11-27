@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -20,6 +21,7 @@ import {
   saveAccount,
   saveSecurityRecord,
 } from '../../src/storage/db';
+import * as cryptoModule from '../../src/security/crypto';
 import { hashSecret } from '../../src/security/crypto';
 import * as csvModule from '../../src/export/csv';
 
@@ -1094,6 +1096,222 @@ describe('Banners and AppContext state flows', () => {
     expect(screen.getByTestId('last-deleted')).toHaveTextContent('none');
     expect(screen.queryByText('Transaction deleted and balances updated.')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Undo' })).not.toBeInTheDocument();
+  });
+
+  it('keeps lastDeletedTx and Undo retryable when restoreDeletedTransactionAtomic fails once', async () => {
+    const dbName = nextDbName();
+    const db = await openAppDb(dbName);
+    await saveAccount(db, {
+      id: 'acc-1',
+      name: 'SBI Savings',
+      startingBalancePaise: 500_000,
+      createdAt: '2026-11-01T08:00:00.000Z',
+      archived: false,
+    });
+    await createTransactionAtomic(db, makeTx({ id: 'tx-1', note: 'Retry target' }));
+    db.close();
+
+    const restoreSpy = vi
+      .spyOn(dbModule, 'restoreDeletedTransactionAtomic')
+      .mockRejectedValueOnce(new Error('Temporary IDB failure'));
+
+    render(
+      <AppProvider dbName={dbName}>
+        <LockAndDeleteHarness />
+      </AppProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('loading')).toHaveTextContent('false');
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Tx 1' }));
+    await waitFor(() => {
+      expect(screen.getByText('Transaction deleted and balances updated.')).toBeInTheDocument();
+    });
+
+    // First Undo attempt fails -> error toast stays AND Undo button remains available
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
+    await waitFor(() => {
+      expect(screen.getByText('Could not restore this entry. Please try again.')).toBeInTheDocument();
+    });
+    expect(screen.getByTestId('tx-count')).toHaveTextContent('0');
+    expect(screen.getByTestId('last-deleted')).toHaveTextContent('tx-1');
+    const retryBtn = screen.getByRole('button', { name: 'Undo' });
+    expect(retryBtn).toBeInTheDocument();
+
+    // Second Undo attempt succeeds
+    fireEvent.click(retryBtn);
+    await waitFor(() => {
+      expect(screen.getByText('Transaction restored and balances updated.')).toBeInTheDocument();
+    });
+    expect(restoreSpy).toHaveBeenCalledTimes(2);
+    expect(screen.getByTestId('tx-count')).toHaveTextContent('1');
+    expect(screen.getByTestId('last-deleted')).toHaveTextContent('none');
+  });
+
+  it('auto-locks after > 60s when the page becomes hidden during verifyPinAndUnlock', async () => {
+    const dbName = nextDbName();
+    const db = await openAppDb(dbName);
+    await saveAccount(db, {
+      id: 'acc-1',
+      name: 'SBI Savings',
+      startingBalancePaise: 500_000,
+      createdAt: '2026-11-01T08:00:00.000Z',
+      archived: false,
+    });
+    await saveSecurityRecord(db, {
+      key: 'lock',
+      pinHash: await hashSecret('1234'),
+      masterPasswordHash: await hashSecret('mom-master-pw'),
+      updatedAt: '2026-11-26T09:00:00.000Z',
+    });
+    db.close();
+
+    let resolveVerify!: (matched: boolean) => void;
+    vi.spyOn(cryptoModule, 'verifySecret').mockImplementation(
+      () =>
+        new Promise<boolean>((resolve) => {
+          resolveVerify = resolve;
+        })
+    );
+
+    let visibilityState: DocumentVisibilityState = 'visible';
+    Object.defineProperty(document, 'visibilityState', {
+      configurable: true,
+      get: () => visibilityState,
+    });
+
+    let nowMs = 2_000_000;
+    vi.spyOn(Date, 'now').mockImplementation(() => nowMs);
+
+    try {
+      render(
+        <AppProvider dbName={dbName}>
+          <LockAndDeleteHarness />
+        </AppProvider>
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('loading')).toHaveTextContent('false');
+      });
+
+      // Start PIN verification while visible, then background before verifySecret resolves
+      fireEvent.click(screen.getByRole('button', { name: 'Unlock With Valid PIN' }));
+      await waitFor(() => {
+        expect(typeof resolveVerify).toBe('function');
+      });
+
+      visibilityState = 'hidden';
+      document.dispatchEvent(new Event('visibilitychange'));
+
+      await act(async () => {
+        resolveVerify(true);
+        await Promise.resolve();
+      });
+
+      expect(screen.getByTestId('is-unlocked')).toHaveTextContent('true');
+
+      // Return after > 60s -> must auto-lock
+      nowMs += 60_001;
+      visibilityState = 'visible';
+      await act(async () => {
+        document.dispatchEvent(new Event('visibilitychange'));
+      });
+
+      expect(screen.getByTestId('is-locked')).toHaveTextContent('true');
+    } finally {
+      Object.defineProperty(document, 'visibilityState', {
+        configurable: true,
+        value: 'visible',
+      });
+    }
+  });
+
+  it('syncs PIN lock across open tabs and prevents a stale tab from overwriting existing credentials', async () => {
+    const dbName = nextDbName();
+    const db = await openAppDb(dbName);
+    await saveAccount(db, {
+      id: 'acc-1',
+      name: 'SBI Savings',
+      startingBalancePaise: 500_000,
+      createdAt: '2026-11-01T08:00:00.000Z',
+      archived: false,
+    });
+    db.close();
+
+    function DualTabHarness({ label }: { label: string }) {
+      const app = useApp();
+      const [setupErr, setSetupErr] = useState('');
+      const [unlockErr, setUnlockErr] = useState('');
+      return (
+        <div>
+          <span data-testid={`${label}-loading`}>{String(app.loading)}</span>
+          <span data-testid={`${label}-has-pin`}>{String(app.hasPin)}</span>
+          <span data-testid={`${label}-is-locked`}>{String(app.isLocked)}</span>
+          <span data-testid={`${label}-setup-err`}>{setupErr}</span>
+          <span data-testid={`${label}-unlock-err`}>{unlockErr}</span>
+          <button
+            type="button"
+            onClick={() => {
+              void app.setupPin(label === 'tab1' ? '1234' : '9999', `${label}-master-pw`).then((r) => {
+                if (!r.ok) setSetupErr(r.error);
+              });
+            }}
+          >
+            {label} Setup PIN
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              void app.verifyPinAndUnlock('1234').then((r) => {
+                if (!r.ok) setUnlockErr(r.error);
+              });
+            }}
+          >
+            {label} Unlock 1234
+          </button>
+        </div>
+      );
+    }
+
+    render(
+      <>
+        <AppProvider dbName={dbName}>
+          <DualTabHarness label="tab1" />
+        </AppProvider>
+        <AppProvider dbName={dbName}>
+          <DualTabHarness label="tab2" />
+        </AppProvider>
+      </>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('tab1-loading')).toHaveTextContent('false');
+      expect(screen.getByTestId('tab2-loading')).toHaveTextContent('false');
+    });
+
+    expect(screen.getByTestId('tab1-has-pin')).toHaveTextContent('false');
+    expect(screen.getByTestId('tab2-has-pin')).toHaveTextContent('false');
+
+    // Tab 1 sets up PIN -> Tab 2 must refresh lock state and lock automatically
+    fireEvent.click(screen.getByRole('button', { name: 'tab1 Setup PIN' }));
+    await waitFor(() => {
+      expect(screen.getByTestId('tab1-has-pin')).toHaveTextContent('true');
+      expect(screen.getByTestId('tab2-has-pin')).toHaveTextContent('true');
+    });
+    expect(screen.getByTestId('tab2-is-locked')).toHaveTextContent('true');
+
+    // Even if Tab 2 tries setupPin, it must refuse and NOT overwrite Tab 1's PIN (1234)
+    fireEvent.click(screen.getByRole('button', { name: 'tab2 Setup PIN' }));
+    await waitFor(() => {
+      expect(screen.getByTestId('tab2-setup-err')).toHaveTextContent(/already enabled/i);
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'tab2 Unlock 1234' }));
+    await waitFor(() => {
+      expect(screen.getByTestId('tab2-is-locked')).toHaveTextContent('false');
+    });
   });
 });
 

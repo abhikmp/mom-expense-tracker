@@ -10,6 +10,7 @@ import {
   type Transaction,
 } from '../../src/domain/types';
 import {
+  createSecurityRecordIfAbsent,
   createTransactionAtomic,
   deleteSecurityRecord,
   deleteTransactionAtomic,
@@ -449,5 +450,39 @@ describe('IndexedDB persistence layer', () => {
       makeTransaction({ id: 'tx-undo-2', accountId: 'acc-1' })
     );
     expect(clamped.changesSinceLastBackup).toBe(0);
+  });
+
+  it('createSecurityRecordIfAbsent stores when empty and refuses to overwrite an existing lock record', async () => {
+    const db = await createTestDb();
+    await loadAppState(db);
+
+    const first = {
+      key: 'lock' as const,
+      pinHash: {
+        algorithm: 'PBKDF2-SHA256' as const,
+        iterations: 100_000,
+        saltB64: 'c2FsdDE=',
+        hashB64: 'aGFzaDE=',
+      },
+      masterPasswordHash: {
+        algorithm: 'PBKDF2-SHA256' as const,
+        iterations: 100_000,
+        saltB64: 'c2FsdDI=',
+        hashB64: 'aGFzaDI=',
+      },
+      updatedAt: '2026-11-27T10:00:00.000Z',
+    };
+    const second = {
+      ...first,
+      pinHash: { ...first.pinHash, hashB64: 'b3ZlcndyaXRl' },
+      updatedAt: '2026-11-27T11:00:00.000Z',
+    };
+
+    const res1 = await createSecurityRecordIfAbsent(db, first);
+    expect(res1).toEqual({ created: true });
+
+    const res2 = await createSecurityRecordIfAbsent(db, second);
+    expect(res2).toEqual({ created: false, existing: first });
+    await expect(loadSecurityRecord(db)).resolves.toEqual(first);
   });
 });

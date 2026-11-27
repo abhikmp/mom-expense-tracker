@@ -400,6 +400,25 @@ export async function saveSecurityRecord(
 }
 
 /**
+ * Atomically creates the PIN/Master Password security record only if none exists yet.
+ */
+export async function createSecurityRecordIfAbsent(
+  db: IDBPDatabase<MomExpenseDbSchema>,
+  record: SecurityRecord
+): Promise<{ created: true } | { created: false; existing: SecurityRecord }> {
+  const tx = db.transaction('security', 'readwrite');
+  const store = tx.objectStore('security');
+  const existing = await store.get(SECURITY_KEY);
+  if (existing) {
+    await tx.done;
+    return { created: false, existing };
+  }
+  await store.put(record);
+  await tx.done;
+  return { created: true };
+}
+
+/**
  * Removes the persisted PIN/Master Password security record.
  */
 export async function deleteSecurityRecord(
