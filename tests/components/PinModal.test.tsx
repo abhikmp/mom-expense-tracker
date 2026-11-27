@@ -248,7 +248,9 @@ describe('PinModal', () => {
     const forgotBtn = within(dialog).getByRole('button', { name: 'Forgot PIN?' });
     expect(forgotBtn).toBeEnabled();
     fireEvent.click(forgotBtn);
-    expect(screen.getByRole('dialog', { name: 'Verify Master Password' })).toBeInTheDocument();
+    const masterDialog = screen.getByRole('dialog', { name: 'Verify Master Password' });
+    expect(masterDialog).toBeInTheDocument();
+    expect(within(masterDialog).queryByRole('alert')).not.toBeInTheDocument();
 
     // Switch to fake timers before returning to unlock so PinModal's interval uses fake timers
     vi.useFakeTimers({ shouldAdvanceTime: true });
@@ -338,6 +340,51 @@ describe('PinModal', () => {
     });
     expect(screen.getByTestId('is-unlocked')).toHaveTextContent('true');
     expect(screen.getByTestId('toast')).toHaveTextContent('PIN updated and app unlocked.');
+  });
+
+  it('shows Master Password validation errors immediately in forgot-master mode even during an active PIN cooldown', async () => {
+    const dbName = nextDbName();
+    await seedSecurity(dbName, '1234', 'momsecret123');
+
+    render(
+      <AppProvider dbName={dbName}>
+        <PinTestHarness />
+      </AppProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('loading')).not.toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Unlock with PIN' }));
+    const unlockDialog = screen.getByRole('dialog', { name: 'Unlock Financial Details' });
+    const getPinInput = () => within(unlockDialog).getByLabelText('PIN') as HTMLInputElement;
+
+    for (let i = 1; i <= 5; i += 1) {
+      fireEvent.change(getPinInput(), { target: { value: '9999' } });
+      fireEvent.submit(within(unlockDialog).getByRole('button', { name: 'Unlock' }).closest('form')!);
+      await waitFor(() => {
+        expect(screen.getByTestId('failed-attempts')).toHaveTextContent(String(i));
+      });
+    }
+
+    fireEvent.click(within(unlockDialog).getByRole('button', { name: 'Forgot PIN?' }));
+    const masterDialog = screen.getByRole('dialog', { name: 'Verify Master Password' });
+
+    // Cooldown alert from unlock mode must not appear on entering forgot-master
+    expect(within(masterDialog).queryByRole('alert')).not.toBeInTheDocument();
+
+    // Wrong Master Password during active PIN cooldown must show the Master Password error immediately
+    const masterInput = within(masterDialog).getByLabelText('Master Password') as HTMLInputElement;
+    fireEvent.change(masterInput, { target: { value: 'wrong-master' } });
+    fireEvent.submit(within(masterDialog).getByRole('button', { name: 'Verify' }).closest('form')!);
+
+    await waitFor(() => {
+      expect(within(masterDialog).getByRole('alert')).toHaveTextContent(
+        'Incorrect Master Password. Please try again.'
+      );
+    });
+    expect(masterInput.value).toBe('');
   });
 
   it('change mode verifies current PIN (with Forgot PIN? link) and updates to matching new PIN', async () => {

@@ -171,8 +171,11 @@ export function PinModal() {
     }
   }, [pinModalMode]);
 
+  const isPinAuthMode =
+    pinModalMode === 'unlock' || pinModalMode === 'change' || pinModalMode === 'disable';
+
   useEffect(() => {
-    if (!pinModalMode || pinCooldownUntil <= Date.now()) return;
+    if (!isPinAuthMode || pinCooldownUntil <= Date.now()) return;
     setNow(Date.now());
     const interval = window.setInterval(() => {
       const current = Date.now();
@@ -183,12 +186,14 @@ export function PinModal() {
       }
     }, 1000);
     return () => window.clearInterval(interval);
-  }, [pinCooldownUntil, pinModalMode]);
+  }, [isPinAuthMode, pinCooldownUntil]);
 
   if (!pinModalMode) return null;
 
-  const cooldownSec = Math.max(0, Math.ceil((pinCooldownUntil - now) / 1000));
-  const inCooldown = cooldownSec > 0;
+  const cooldownSec = isPinAuthMode
+    ? Math.max(0, Math.ceil((pinCooldownUntil - now) / 1000))
+    : 0;
+  const inCooldown = isPinAuthMode && cooldownSec > 0;
   const activeError = inCooldown
     ? `Too many incorrect attempts. Try again in ${cooldownSec}s.`
     : error;
