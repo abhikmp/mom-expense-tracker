@@ -1150,6 +1150,76 @@ describe('Banners and AppContext state flows', () => {
     expect(screen.getByTestId('last-deleted')).toHaveTextContent('none');
   });
 
+  it('cancels pending Undo retry if the user locks the app before restore fails', async () => {
+    const dbName = nextDbName();
+    const db = await openAppDb(dbName);
+    await saveAccount(db, {
+      id: 'acc-1',
+      name: 'SBI Savings',
+      startingBalancePaise: 500_000,
+      createdAt: '2026-11-01T08:00:00.000Z',
+      archived: false,
+    });
+    await createTransactionAtomic(db, makeTx({ id: 'tx-1', note: 'Cancel on lock' }));
+    await saveSecurityRecord(db, {
+      key: 'lock',
+      pinHash: await hashSecret('1234'),
+      masterPasswordHash: await hashSecret('mom-master-pw'),
+      updatedAt: '2026-11-26T09:00:00.000Z',
+    });
+    db.close();
+
+    let rejectRestore!: (err: Error) => void;
+    vi.spyOn(dbModule, 'restoreDeletedTransactionAtomic').mockImplementationOnce(
+      () =>
+        new Promise((_, reject) => {
+          rejectRestore = reject;
+        })
+    );
+
+    render(
+      <AppProvider dbName={dbName}>
+        <LockAndDeleteHarness />
+      </AppProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('loading')).toHaveTextContent('false');
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Unlock With Valid PIN' }));
+    await waitFor(() => {
+      expect(screen.getByTestId('is-locked')).toHaveTextContent('false');
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Tx 1' }));
+    await waitFor(() => {
+      expect(screen.getByText('Transaction deleted and balances updated.')).toBeInTheDocument();
+    });
+
+    // Click Undo (starts async restore), then lock before it rejects
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
+    await waitFor(() => {
+      expect(typeof rejectRestore).toBe('function');
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Lock App' }));
+    expect(screen.getByTestId('is-locked')).toHaveTextContent('true');
+    expect(screen.getByTestId('last-deleted')).toHaveTextContent('none');
+
+    await act(async () => {
+      rejectRestore(new Error('IndexedDB write failed'));
+      await Promise.resolve();
+    });
+
+    // Must NOT resurrect lastDeletedTx or show Undo / error banner on locked screen
+    expect(screen.getByTestId('last-deleted')).toHaveTextContent('none');
+    expect(screen.queryByRole('button', { name: 'Undo' })).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('Could not restore this entry. Please try again.')
+    ).not.toBeInTheDocument();
+  });
+
   it('auto-locks after > 60s when the page becomes hidden during verifyPinAndUnlock', async () => {
     const dbName = nextDbName();
     const db = await openAppDb(dbName);

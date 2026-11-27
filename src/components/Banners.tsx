@@ -51,7 +51,7 @@ export function Banners() {
             <span>{statusToast}</span>
           </div>
           <div className="banner-actions">
-            {lastDeletedTx && (
+            {lastDeletedTx && !isLocked && (
               <button
                 type="button"
                 className="btn btn-danger-fill btn-sm"
