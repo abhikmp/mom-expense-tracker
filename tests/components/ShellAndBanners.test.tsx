@@ -606,6 +606,7 @@ describe('Banners and AppContext state flows', () => {
         <div data-testid="view">{app.view}</div>
         <div data-testid="selected-bank">{app.selectedBankId ?? 'none'}</div>
         <div data-testid="tx-count">{app.transactions.length}</div>
+        <div data-testid="changes">{app.settings.changesSinceLastBackup}</div>
         <div data-testid="has-pin">{String(app.hasPin)}</div>
         <div data-testid="is-unlocked">{String(app.isUnlocked)}</div>
         <div data-testid="is-locked">{String(app.isLocked)}</div>
@@ -615,6 +616,15 @@ describe('Banners and AppContext state flows', () => {
         <Banners />
         <button type="button" onClick={() => void app.deleteTransaction('tx-1')}>
           Delete Tx 1
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            void app.undoDeleteTransaction();
+            void app.undoDeleteTransaction();
+          }}
+        >
+          Double Undo
         </button>
         <button type="button" onClick={() => app.navigate('record')}>
           Go Record
@@ -761,6 +771,49 @@ describe('Banners and AppContext state flows', () => {
     expect(restored?.note).toBe('Undo target');
   });
 
+  it('guards concurrent undoDeleteTransaction calls so restore and changesSinceLastBackup decrement run only once', async () => {
+    const dbName = nextDbName();
+    const db = await openAppDb(dbName);
+    await saveAccount(db, {
+      id: 'acc-1',
+      name: 'SBI Savings',
+      startingBalancePaise: 500_000,
+      createdAt: '2026-11-01T08:00:00.000Z',
+      archived: false,
+    });
+    await createTransactionAtomic(db, makeTx({ id: 'tx-1', note: 'Concurrent undo' }));
+    db.close();
+
+    const restoreSpy = vi.spyOn(dbModule, 'restoreDeletedTransactionAtomic');
+
+    render(
+      <AppProvider dbName={dbName}>
+        <LockAndDeleteHarness />
+      </AppProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('loading')).toHaveTextContent('false');
+    });
+    expect(screen.getByTestId('changes')).toHaveTextContent('1');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Tx 1' }));
+    await waitFor(() => {
+      expect(screen.getByText('Transaction deleted and balances updated.')).toBeInTheDocument();
+    });
+    expect(screen.getByTestId('changes')).toHaveTextContent('2');
+
+    // Trigger two concurrent undoDeleteTransaction calls in the same tick
+    fireEvent.click(screen.getByRole('button', { name: 'Double Undo' }));
+    await waitFor(() => {
+      expect(screen.getByText('Transaction restored and balances updated.')).toBeInTheDocument();
+    });
+
+    expect(restoreSpy).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('tx-count')).toHaveTextContent('1');
+    expect(screen.getByTestId('changes')).toHaveTextContent('1');
+  });
+
   it('hides backup reminder while locked, keeps record view on save while locked, unlocks silently, and auto-locks only after > 60s in background', async () => {
     const dbName = nextDbName();
     const db = await openAppDb(dbName);
@@ -884,6 +937,9 @@ describe('Banners and AppContext state flows', () => {
         <button type="button" onClick={() => app.openPinModal('setup')}>
           Open Setup
         </button>
+        <button type="button" onClick={() => app.openPinModal('change')}>
+          Open Change
+        </button>
         <button type="button" onClick={() => app.closePinModal()}>
           Close Modal
         </button>
@@ -939,12 +995,15 @@ describe('Banners and AppContext state flows', () => {
     expect(screen.getByTestId('is-unlocked')).toHaveTextContent('true');
     expect(screen.getByTestId('modal-mode')).toHaveTextContent('none');
 
-    // Navigate to 'all' and manually lock -> returns to 'home'
+    // Navigate to 'all', open 'change' modal, and lock -> returns to 'home' and clears pinModalMode
     fireEvent.click(screen.getByRole('button', { name: 'Go All' }));
     expect(screen.getByTestId('view')).toHaveTextContent('all');
+    fireEvent.click(screen.getByRole('button', { name: 'Open Change' }));
+    expect(screen.getByTestId('modal-mode')).toHaveTextContent('change');
     fireEvent.click(screen.getByRole('button', { name: 'Lock App' }));
     expect(screen.getByTestId('is-locked')).toHaveTextContent('true');
     expect(screen.getByTestId('view')).toHaveTextContent('home');
+    expect(screen.getByTestId('modal-mode')).toHaveTextContent('none');
 
     // 5 wrong PINs trigger cooldown
     for (let i = 1; i <= 5; i += 1) {

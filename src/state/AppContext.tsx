@@ -203,6 +203,7 @@ export function AppProvider({
   const dbReadyRef = useRef<Promise<IDBPDatabase<MomExpenseDbSchema>> | null>(null);
   const themeToggledDuringInitRef = useRef(false);
   const backgroundedAtRef = useRef<number | null>(null);
+  const undoInFlightRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -388,6 +389,7 @@ export function AppProvider({
   const lockApp = useCallback(
     (toastMessage?: string) => {
       setIsUnlocked(false);
+      setPinModalMode(null);
       setLastDeletedTx(null);
       backgroundedAtRef.current = null;
       if (view === 'bank-tx' || view === 'all') {
@@ -556,17 +558,28 @@ export function AppProvider({
 
   const undoDeleteTransaction = useCallback(async (): Promise<void> => {
     const txToRestore = lastDeletedTx;
-    if (!txToRestore) return;
-    await runWithErrorToast('Could not restore this entry. Please try again.', async () => {
-      const db = await getDb();
-      const nextSettings = await restoreDeletedTransactionAtomic(db, txToRestore);
-      setTransactions((prev) =>
-        prev.some((item) => item.id === txToRestore.id) ? prev : [txToRestore, ...prev]
+    if (!txToRestore || undoInFlightRef.current) return;
+    undoInFlightRef.current = true;
+    setLastDeletedTx(null);
+    try {
+      await runWithErrorToast(
+        'Could not restore this entry. Please try again.',
+        async () => {
+          const db = await getDb();
+          const nextSettings = await restoreDeletedTransactionAtomic(db, txToRestore);
+          setTransactions((prev) =>
+            prev.some((item) => item.id === txToRestore.id) ? prev : [txToRestore, ...prev]
+          );
+          setSettings(nextSettings);
+          showToast('Transaction restored and balances updated.', 'success');
+        },
+        () => {
+          setLastDeletedTx(txToRestore);
+        }
       );
-      setSettings(nextSettings);
-      setLastDeletedTx(null);
-      showToast('Transaction restored and balances updated.', 'success');
-    });
+    } finally {
+      undoInFlightRef.current = false;
+    }
   }, [getDb, lastDeletedTx, runWithErrorToast, showToast]);
 
   const verifyCurrentPin = useCallback(
