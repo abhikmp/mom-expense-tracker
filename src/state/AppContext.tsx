@@ -20,6 +20,7 @@ import {
   type Category,
   type FilterState,
   type SecurityRecord,
+  type SecurityThrottleRecord,
   type Transaction,
   type ViewId,
 } from '../domain/types';
@@ -32,14 +33,17 @@ import {
   verifySecret,
 } from '../security/crypto';
 import {
+  clearSecurityThrottle,
   createSecurityRecordIfAbsent,
   createTransactionAtomic,
   deleteSecurityRecord,
   deleteTransactionAtomic,
   loadAppState,
   loadSecurityRecord,
+  loadSecurityThrottle,
   markBackupOrExportCompleted,
   openAppDb,
+  recordFailedAttemptAtomic,
   restoreBackupAtomic,
   restoreDeletedTransactionAtomic,
   saveAccount,
@@ -87,6 +91,8 @@ export interface AppContextValue {
   pinModalMode: PinModalMode | null;
   failedPinAttempts: number;
   pinCooldownUntil: number;
+  failedMasterAttempts: number;
+  masterCooldownUntil: number;
   lastDeletedTx: Transaction | null;
   navigate: (view: ViewId, opts?: NavigateOptions) => void;
   openBankHistory: (bankId: string) => void;
@@ -198,6 +204,8 @@ export function AppProvider({
   const [pinModalMode, setPinModalMode] = useState<PinModalMode | null>(null);
   const [failedPinAttempts, setFailedPinAttempts] = useState(0);
   const [pinCooldownUntil, setPinCooldownUntil] = useState(0);
+  const [failedMasterAttempts, setFailedMasterAttempts] = useState(0);
+  const [masterCooldownUntil, setMasterCooldownUntil] = useState(0);
   const [lastDeletedTx, setLastDeletedTx] = useState<Transaction | null>(null);
 
   const hasPin = securityRecord !== null;
@@ -218,6 +226,20 @@ export function AppProvider({
   const updateUnlocked = useCallback((next: boolean) => {
     isUnlockedRef.current = next;
     setIsUnlocked(next);
+  }, []);
+
+  const applyThrottleState = useCallback((throttle: SecurityThrottleRecord) => {
+    setFailedPinAttempts(throttle.failedPinAttempts);
+    setPinCooldownUntil(throttle.pinCooldownUntil);
+    setFailedMasterAttempts(throttle.failedMasterAttempts);
+    setMasterCooldownUntil(throttle.masterCooldownUntil);
+  }, []);
+
+  const resetThrottleState = useCallback(() => {
+    setFailedPinAttempts(0);
+    setPinCooldownUntil(0);
+    setFailedMasterAttempts(0);
+    setMasterCooldownUntil(0);
   }, []);
 
   const checkIsLocked = useCallback(
@@ -241,9 +263,10 @@ export function AppProvider({
         throw new Error('AppProvider unmounted before DB initialization completed.');
       }
       dbRef.current = db;
-      const [loaded, loadedSecurity] = await Promise.all([
+      const [loaded, loadedSecurity, loadedThrottle] = await Promise.all([
         loadAppState(db),
         loadSecurityRecord(db),
+        loadSecurityThrottle(db),
       ]);
       if (!cancelled) {
         setAccounts(loaded.accounts);
@@ -258,8 +281,7 @@ export function AppProvider({
         setSecurityRecord(loadedSecurity);
         updateUnlocked(false);
         setPinModalMode(null);
-        setFailedPinAttempts(0);
-        setPinCooldownUntil(0);
+        applyThrottleState(loadedThrottle);
         setStorageError(null);
         setLoading(false);
       }
@@ -444,7 +466,10 @@ export function AppProvider({
 
   const syncSecurityFromDb = useCallback(async (): Promise<SecurityRecord | null> => {
     const db = await getDb();
-    const latest = await loadSecurityRecord(db);
+    const [latest, latestThrottle] = await Promise.all([
+      loadSecurityRecord(db),
+      loadSecurityThrottle(db),
+    ]);
     const current = securityRecordRef.current;
 
     if (!latest) {
@@ -452,11 +477,10 @@ export function AppProvider({
         securityRecordRef.current = null;
         setSecurityRecord(null);
         updateUnlocked(false);
-        setFailedPinAttempts(0);
-        setPinCooldownUntil(0);
         backgroundedAtRef.current = null;
         setPinModalMode((prev) => (prev && prev !== 'setup' ? null : prev));
       }
+      applyThrottleState(latestThrottle);
       return null;
     }
 
@@ -465,8 +489,6 @@ export function AppProvider({
       securityRecordRef.current = latest;
       setSecurityRecord(latest);
       updateUnlocked(false);
-      setFailedPinAttempts(0);
-      setPinCooldownUntil(0);
       backgroundedAtRef.current = null;
       setLastDeletedTx(null);
       setPinModalMode((prev) =>
@@ -480,8 +502,9 @@ export function AppProvider({
       }
     }
 
+    applyThrottleState(latestThrottle);
     return latest;
-  }, [getDb, updateUnlocked]);
+  }, [applyThrottleState, getDb, updateUnlocked]);
 
   useEffect(() => {
     const channelName = `mom-expense-security-${dbName ?? 'default'}`;
@@ -737,7 +760,9 @@ export function AppProvider({
     async (
       pin: string,
       wrongPinMessage: string
-    ): Promise<{ ok: true; record: SecurityRecord } | { ok: false; error: string }> => {
+    ): Promise<
+      { ok: true; record: SecurityRecord; hasThrottle: boolean } | { ok: false; error: string }
+    > => {
       if (pinCooldownUntil > Date.now()) {
         const remainingSec = Math.ceil((pinCooldownUntil - Date.now()) / 1000);
         return {
@@ -751,20 +776,31 @@ export function AppProvider({
       }
       try {
         const db = await getDb();
-        const latestRecord = await loadSecurityRecord(db);
+        const [latestRecord, latestThrottle] = await Promise.all([
+          loadSecurityRecord(db),
+          loadSecurityThrottle(db),
+        ]);
         if (latestRecord?.updatedAt !== securityRecordRef.current?.updatedAt) {
           securityRecordRef.current = latestRecord;
           setSecurityRecord(latestRecord);
         }
+        applyThrottleState(latestThrottle);
         if (!latestRecord) {
           return { ok: false, error: 'PIN lock is not set up.' };
         }
+        if (latestThrottle.pinCooldownUntil > Date.now()) {
+          const remainingSec = Math.ceil((latestThrottle.pinCooldownUntil - Date.now()) / 1000);
+          return {
+            ok: false,
+            error: `Too many wrong PINs. Wait ${remainingSec} seconds and try again.`,
+          };
+        }
         const matched = await verifySecret(pin, latestRecord.pinHash);
         if (!matched) {
-          const nextAttempts = failedPinAttempts + 1;
-          setFailedPinAttempts(nextAttempts);
-          if (nextAttempts >= 5) {
-            setPinCooldownUntil(Date.now() + 30_000);
+          const updatedThrottle = await recordFailedAttemptAtomic(db, 'pin');
+          applyThrottleState(updatedThrottle);
+          postSecurityChanged();
+          if (updatedThrottle.failedPinAttempts >= 5) {
             return {
               ok: false,
               error: 'Too many wrong PINs. Please wait 30 seconds or use your Master Password.',
@@ -772,12 +808,17 @@ export function AppProvider({
           }
           return { ok: false, error: wrongPinMessage };
         }
-        return { ok: true, record: latestRecord };
+        const hasThrottle =
+          latestThrottle.failedPinAttempts > 0 ||
+          latestThrottle.pinCooldownUntil > 0 ||
+          latestThrottle.failedMasterAttempts > 0 ||
+          latestThrottle.masterCooldownUntil > 0;
+        return { ok: true, record: latestRecord, hasThrottle };
       } catch {
         return { ok: false, error: 'Could not verify credentials. Please try again.' };
       }
     },
-    [failedPinAttempts, getDb, pinCooldownUntil]
+    [applyThrottleState, getDb, pinCooldownUntil, postSecurityChanged]
   );
 
   const verifyPinAndUnlock = useCallback(
@@ -786,38 +827,85 @@ export function AppProvider({
       if (!auth.ok) {
         return { ok: false, error: auth.error };
       }
-      setFailedPinAttempts(0);
-      setPinCooldownUntil(0);
+      if (auth.hasThrottle) {
+        try {
+          const db = await getDb();
+          await clearSecurityThrottle(db, 'all');
+          postSecurityChanged();
+        } catch {
+          // Best-effort throttle clear after verified unlock
+        }
+      }
+      resetThrottleState();
       backgroundedAtRef.current =
         document.visibilityState === 'hidden' ? (lastHiddenAtRef.current ?? Date.now()) : null;
       updateUnlocked(true);
       setPinModalMode(null);
       return { ok: true };
     },
-    [updateUnlocked, verifyCurrentPin]
+    [getDb, postSecurityChanged, resetThrottleState, updateUnlocked, verifyCurrentPin]
   );
 
   const verifyMasterAndProceed = useCallback(
     async (masterPassword: string): Promise<{ ok: true } | { ok: false; error: string }> => {
+      if (masterCooldownUntil > Date.now()) {
+        const remainingSec = Math.ceil((masterCooldownUntil - Date.now()) / 1000);
+        return {
+          ok: false,
+          error: `Too many wrong attempts. Wait ${remainingSec} seconds and try again.`,
+        };
+      }
       if (!masterPassword) {
         return { ok: false, error: 'Please enter your Master Password.' };
       }
       try {
         const db = await getDb();
-        const latestRecord = await loadSecurityRecord(db);
+        const [latestRecord, latestThrottle] = await Promise.all([
+          loadSecurityRecord(db),
+          loadSecurityThrottle(db),
+        ]);
         if (latestRecord?.updatedAt !== securityRecordRef.current?.updatedAt) {
           securityRecordRef.current = latestRecord;
           setSecurityRecord(latestRecord);
         }
+        applyThrottleState(latestThrottle);
         if (!latestRecord) {
           return { ok: false, error: 'PIN lock is not set up.' };
         }
+        if (latestThrottle.masterCooldownUntil > Date.now()) {
+          const remainingSec = Math.ceil((latestThrottle.masterCooldownUntil - Date.now()) / 1000);
+          return {
+            ok: false,
+            error: `Too many wrong attempts. Wait ${remainingSec} seconds and try again.`,
+          };
+        }
         const matched = await verifySecret(masterPassword, latestRecord.masterPasswordHash);
         if (!matched) {
+          const updatedThrottle = await recordFailedAttemptAtomic(db, 'master');
+          applyThrottleState(updatedThrottle);
+          postSecurityChanged();
+          if (updatedThrottle.failedMasterAttempts >= 5) {
+            return {
+              ok: false,
+              error: 'Too many wrong attempts. Please wait 30 seconds and try again.',
+            };
+          }
           return { ok: false, error: 'Incorrect Master Password. Please try again.' };
         }
-        setFailedPinAttempts(0);
-        setPinCooldownUntil(0);
+        const hasThrottle =
+          latestThrottle.failedPinAttempts > 0 ||
+          latestThrottle.pinCooldownUntil > 0 ||
+          latestThrottle.failedMasterAttempts > 0 ||
+          latestThrottle.masterCooldownUntil > 0;
+        if (hasThrottle) {
+          try {
+            await clearSecurityThrottle(db, 'all');
+            postSecurityChanged();
+          } catch {
+            // Best-effort throttle clear after verified recovery
+          }
+        }
+        resetThrottleState();
         backgroundedAtRef.current =
           document.visibilityState === 'hidden' ? (lastHiddenAtRef.current ?? Date.now()) : null;
         updateUnlocked(true);
@@ -827,7 +915,14 @@ export function AppProvider({
         return { ok: false, error: 'Could not verify credentials. Please try again.' };
       }
     },
-    [getDb, updateUnlocked]
+    [
+      applyThrottleState,
+      getDb,
+      masterCooldownUntil,
+      postSecurityChanged,
+      resetThrottleState,
+      updateUnlocked,
+    ]
   );
 
   const setupPin = useCallback(
@@ -861,20 +956,20 @@ export function AppProvider({
           setSecurityRecord(created.existing);
           updateUnlocked(false);
           backgroundedAtRef.current = null;
-          setFailedPinAttempts(0);
-          setPinCooldownUntil(0);
+          const existingThrottle = await loadSecurityThrottle(db);
+          applyThrottleState(existingThrottle);
           return {
             ok: false,
             error: 'PIN lock is already enabled. Please unlock with your existing PIN.',
           };
         }
+        await clearSecurityThrottle(db, 'all');
         securityRecordRef.current = record;
         setSecurityRecord(record);
         backgroundedAtRef.current =
           document.visibilityState === 'hidden' ? (lastHiddenAtRef.current ?? Date.now()) : null;
         updateUnlocked(true);
-        setFailedPinAttempts(0);
-        setPinCooldownUntil(0);
+        resetThrottleState();
         setPinModalMode(null);
         postSecurityChanged();
         showToast('PIN lock enabled.', 'success');
@@ -883,7 +978,7 @@ export function AppProvider({
         return { ok: false, error: 'Could not save PIN lock settings. Please try again.' };
       }
     },
-    [getDb, postSecurityChanged, showToast, updateUnlocked]
+    [applyThrottleState, getDb, postSecurityChanged, resetThrottleState, showToast, updateUnlocked]
   );
 
   const resetPinAfterMaster = useCallback(
@@ -907,13 +1002,13 @@ export function AppProvider({
           updatedAt: new Date().toISOString(),
         };
         await saveSecurityRecord(db, updated);
+        await clearSecurityThrottle(db, 'all');
         securityRecordRef.current = updated;
         setSecurityRecord(updated);
         backgroundedAtRef.current =
           document.visibilityState === 'hidden' ? (lastHiddenAtRef.current ?? Date.now()) : null;
         updateUnlocked(true);
-        setFailedPinAttempts(0);
-        setPinCooldownUntil(0);
+        resetThrottleState();
         setPinModalMode(null);
         postSecurityChanged();
         showToast('PIN updated and app unlocked.', 'success');
@@ -922,7 +1017,7 @@ export function AppProvider({
         return { ok: false, error: 'Could not update PIN. Please try again.' };
       }
     },
-    [getDb, postSecurityChanged, showToast, updateUnlocked]
+    [getDb, postSecurityChanged, resetThrottleState, showToast, updateUnlocked]
   );
 
   const changePin = useCallback(
@@ -947,13 +1042,13 @@ export function AppProvider({
         };
         const db = await getDb();
         await saveSecurityRecord(db, updated);
+        await clearSecurityThrottle(db, 'all');
         securityRecordRef.current = updated;
         setSecurityRecord(updated);
         backgroundedAtRef.current =
           document.visibilityState === 'hidden' ? (lastHiddenAtRef.current ?? Date.now()) : null;
         updateUnlocked(true);
-        setFailedPinAttempts(0);
-        setPinCooldownUntil(0);
+        resetThrottleState();
         setPinModalMode(null);
         postSecurityChanged();
         showToast('PIN changed.', 'success');
@@ -962,7 +1057,7 @@ export function AppProvider({
         return { ok: false, error: 'Could not update PIN. Please try again.' };
       }
     },
-    [getDb, postSecurityChanged, showToast, updateUnlocked, verifyCurrentPin]
+    [getDb, postSecurityChanged, resetThrottleState, showToast, updateUnlocked, verifyCurrentPin]
   );
 
   const disablePin = useCallback(
@@ -978,8 +1073,7 @@ export function AppProvider({
         setSecurityRecord(null);
         updateUnlocked(false);
         backgroundedAtRef.current = null;
-        setFailedPinAttempts(0);
-        setPinCooldownUntil(0);
+        resetThrottleState();
         setPinModalMode(null);
         postSecurityChanged();
         showToast('PIN lock turned off.', 'success');
@@ -988,7 +1082,7 @@ export function AppProvider({
         return { ok: false, error: 'Could not turn off PIN lock. Please try again.' };
       }
     },
-    [getDb, postSecurityChanged, showToast, updateUnlocked, verifyCurrentPin]
+    [getDb, postSecurityChanged, resetThrottleState, showToast, updateUnlocked, verifyCurrentPin]
   );
 
   const addAccount = useCallback(
@@ -1230,6 +1324,8 @@ export function AppProvider({
       pinModalMode,
       failedPinAttempts,
       pinCooldownUntil,
+      failedMasterAttempts,
+      masterCooldownUntil,
       lastDeletedTx,
       navigate,
       openBankHistory,
@@ -1292,6 +1388,8 @@ export function AppProvider({
       pinModalMode,
       failedPinAttempts,
       pinCooldownUntil,
+      failedMasterAttempts,
+      masterCooldownUntil,
       lastDeletedTx,
       navigate,
       openBankHistory,

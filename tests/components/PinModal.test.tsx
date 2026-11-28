@@ -48,6 +48,7 @@ function PinTestHarness() {
       <div data-testid="is-locked">{String(app.isLocked)}</div>
       <div data-testid="modal-mode">{app.pinModalMode ?? 'none'}</div>
       <div data-testid="failed-attempts">{app.failedPinAttempts}</div>
+      <div data-testid="failed-master-attempts">{app.failedMasterAttempts}</div>
       <div data-testid="toast">{app.statusToast ?? 'none'}</div>
 
       {showCard && (
@@ -675,5 +676,129 @@ describe('PinModal', () => {
       );
     });
     expect(screen.getByTestId('toast')).toHaveTextContent('none');
+  });
+
+  it('persists PIN failed attempts and 30s cooldown across unmount/reload', async () => {
+    const dbName = nextDbName();
+    await seedSecurity(dbName, '1234', 'momsecret123');
+
+    const { unmount } = render(
+      <AppProvider dbName={dbName}>
+        <PinTestHarness />
+      </AppProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('loading')).not.toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Unlock with PIN' }));
+    const dialog = screen.getByRole('dialog', { name: 'Unlock Financial Details' });
+    const getPinInput = () => within(dialog).getByLabelText('PIN') as HTMLInputElement;
+
+    for (let i = 1; i <= 5; i += 1) {
+      fireEvent.change(getPinInput(), { target: { value: '9999' } });
+      fireEvent.submit(within(dialog).getByRole('button', { name: 'Unlock' }).closest('form')!);
+      await waitFor(() => {
+        expect(screen.getByTestId('failed-attempts')).toHaveTextContent(String(i));
+      });
+    }
+
+    expect(getPinInput()).toBeDisabled();
+    unmount();
+
+    // Simulate reload by mounting a fresh AppProvider against the same IndexedDB database
+    render(
+      <AppProvider dbName={dbName}>
+        <PinTestHarness />
+      </AppProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('loading')).not.toBeInTheDocument();
+    });
+
+    expect(screen.getByTestId('failed-attempts')).toHaveTextContent('5');
+    fireEvent.click(screen.getByRole('button', { name: 'Unlock with PIN' }));
+    const reloadedDialog = screen.getByRole('dialog', { name: 'Unlock Financial Details' });
+    expect(within(reloadedDialog).getByLabelText('PIN')).toBeDisabled();
+    expect(within(reloadedDialog).getByRole('button', { name: 'Unlock' })).toBeDisabled();
+    expect(within(reloadedDialog).getByRole('alert')).toHaveTextContent(/\d+s/);
+  });
+
+  it('enforces a persisted 30s cooldown after 5 wrong Master Password attempts in Forgot PIN? mode', async () => {
+    const dbName = nextDbName();
+    await seedSecurity(dbName, '1234', 'momsecret123');
+
+    const { unmount } = render(
+      <AppProvider dbName={dbName}>
+        <PinTestHarness />
+      </AppProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('loading')).not.toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Unlock with PIN' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Forgot PIN?' }));
+
+    const masterDialog = screen.getByRole('dialog', { name: 'Verify Master Password' });
+    const getMasterInput = () =>
+      within(masterDialog).getByLabelText('Master Password') as HTMLInputElement;
+
+    for (let i = 1; i <= 5; i += 1) {
+      fireEvent.change(getMasterInput(), { target: { value: `wrong-pass-${i}` } });
+      fireEvent.submit(within(masterDialog).getByRole('button', { name: 'Verify' }).closest('form')!);
+      await waitFor(() => {
+        expect(screen.getByTestId('failed-master-attempts')).toHaveTextContent(String(i));
+      });
+    }
+
+    await waitFor(() => {
+      expect(getMasterInput()).toBeDisabled();
+    });
+    expect(within(masterDialog).getByRole('button', { name: 'Verify' })).toBeDisabled();
+    expect(within(masterDialog).getByRole('alert')).toHaveTextContent(/\d+s/);
+
+    // Simulate reload: Master Password cooldown must persist across remounts
+    unmount();
+
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    render(
+      <AppProvider dbName={dbName}>
+        <PinTestHarness />
+      </AppProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('loading')).not.toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Unlock with PIN' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Forgot PIN?' }));
+    const reloadedMasterDialog = screen.getByRole('dialog', { name: 'Verify Master Password' });
+    expect(within(reloadedMasterDialog).getByLabelText('Master Password')).toBeDisabled();
+    expect(within(reloadedMasterDialog).getByRole('button', { name: 'Verify' })).toBeDisabled();
+
+    // Wait out cooldown, then verify real Master Password works and resets throttle
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(31_000);
+    });
+    await waitFor(() => {
+      expect(within(reloadedMasterDialog).getByLabelText('Master Password')).toBeEnabled();
+    });
+
+    fireEvent.change(within(reloadedMasterDialog).getByLabelText('Master Password'), {
+      target: { value: 'momsecret123' },
+    });
+    fireEvent.submit(
+      within(reloadedMasterDialog).getByRole('button', { name: 'Verify' }).closest('form')!
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('dialog', { name: 'Set New PIN' })).toBeInTheDocument();
+    });
+    vi.useRealTimers();
   });
 });

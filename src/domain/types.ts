@@ -63,6 +63,14 @@ export interface SecurityRecord {
   updatedAt: string;
 }
 
+export interface SecurityThrottleRecord {
+  key: 'throttle';
+  failedPinAttempts: number;
+  pinCooldownUntil: number;
+  failedMasterAttempts: number;
+  masterCooldownUntil: number;
+}
+
 export interface FilterState {
   fromDate: string;
   toDate: string;

@@ -75,6 +75,7 @@ function MasterPasswordField({
   autoComplete,
   placeholder,
   hint,
+  disabled = false,
   inputRef,
 }: {
   id: string;
@@ -86,6 +87,7 @@ function MasterPasswordField({
   autoComplete: string;
   placeholder: string;
   hint?: string;
+  disabled?: boolean;
   inputRef?: React.RefObject<HTMLInputElement | null>;
 }) {
   return (
@@ -102,6 +104,7 @@ function MasterPasswordField({
           autoComplete={autoComplete}
           placeholder={placeholder}
           value={value}
+          disabled={disabled}
           onChange={(event) => onChange(event.target.value)}
         />
         <button
@@ -109,6 +112,7 @@ function MasterPasswordField({
           className="input-eye-btn"
           aria-pressed={shown}
           aria-label={shown ? `Hide ${label}` : `Show ${label}`}
+          disabled={disabled}
           onClick={onToggleShown}
         >
           {shown ? <EyeSlash size={20} aria-hidden="true" /> : <Eye size={20} aria-hidden="true" />}
@@ -126,6 +130,7 @@ export function PinModal() {
   const {
     pinModalMode,
     pinCooldownUntil,
+    masterCooldownUntil,
     openPinModal,
     closePinModal,
     verifyPinAndUnlock,
@@ -173,7 +178,9 @@ export function PinModal() {
   useEffect(() => {
     if (!pinModalMode) return;
     if (pinModalMode === 'forgot-master') {
-      master1Ref.current?.focus();
+      if (!master1Ref.current?.disabled) {
+        master1Ref.current?.focus();
+      }
     } else if (pinModalMode === 'change' || pinModalMode === 'disable') {
       if (!curPinRef.current?.disabled) {
         curPinRef.current?.focus();
@@ -187,27 +194,32 @@ export function PinModal() {
 
   const isPinAuthMode =
     pinModalMode === 'unlock' || pinModalMode === 'change' || pinModalMode === 'disable';
+  const isMasterAuthMode = pinModalMode === 'forgot-master';
+  const activeCooldownUntil = isPinAuthMode
+    ? pinCooldownUntil
+    : isMasterAuthMode
+      ? masterCooldownUntil
+      : 0;
 
   useEffect(() => {
-    if (!isPinAuthMode || pinCooldownUntil <= Date.now()) return;
+    if ((!isPinAuthMode && !isMasterAuthMode) || activeCooldownUntil <= Date.now()) return;
     setNow(Date.now());
     const interval = window.setInterval(() => {
       const current = Date.now();
       setNow(current);
-      if (current >= pinCooldownUntil) {
+      if (current >= activeCooldownUntil) {
         window.clearInterval(interval);
         setError('');
       }
     }, 1000);
     return () => window.clearInterval(interval);
-  }, [isPinAuthMode, pinCooldownUntil]);
+  }, [activeCooldownUntil, isMasterAuthMode, isPinAuthMode]);
 
   if (!pinModalMode) return null;
 
-  const cooldownSec = isPinAuthMode
-    ? Math.max(0, Math.ceil((pinCooldownUntil - now) / 1000))
-    : 0;
-  const inCooldown = isPinAuthMode && cooldownSec > 0;
+  const cooldownSec =
+    activeCooldownUntil > 0 ? Math.max(0, Math.ceil((activeCooldownUntil - now) / 1000)) : 0;
+  const inCooldown = cooldownSec > 0;
   const activeError = inCooldown
     ? `Too many incorrect attempts. Try again in ${cooldownSec}s.`
     : error;
@@ -242,6 +254,7 @@ export function PinModal() {
     }
 
     if (pinModalMode === 'forgot-master') {
+      if (inCooldown) return;
       if (!masterInput) {
         setError('Please enter your Master Password.');
         master1Ref.current?.focus();
@@ -253,6 +266,7 @@ export function PinModal() {
         if (!res.ok) {
           setError(res.error);
           setMasterInput('');
+          setNow(Date.now());
           master1Ref.current?.focus();
         }
       } catch {
@@ -424,6 +438,7 @@ export function PinModal() {
               onChange={setMasterInput}
               autoComplete="current-password"
               placeholder="At least 8 characters"
+              disabled={inCooldown}
               inputRef={master1Ref}
             />
           </>
@@ -577,7 +592,11 @@ export function PinModal() {
             </button>
           )}
           {pinModalMode === 'forgot-master' && (
-            <button type="submit" className="btn btn-primary" disabled={submitting}>
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={inCooldown || submitting}
+            >
               Verify
             </button>
           )}

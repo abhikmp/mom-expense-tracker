@@ -10,14 +10,17 @@ import {
   type Transaction,
 } from '../../src/domain/types';
 import {
+  clearSecurityThrottle,
   createSecurityRecordIfAbsent,
   createTransactionAtomic,
   deleteSecurityRecord,
   deleteTransactionAtomic,
   loadAppState,
   loadSecurityRecord,
+  loadSecurityThrottle,
   markBackupOrExportCompleted,
   openAppDb,
+  recordFailedAttemptAtomic,
   restoreBackupAtomic,
   restoreDeletedTransactionAtomic,
   saveAccount,
@@ -484,5 +487,78 @@ describe('IndexedDB persistence layer', () => {
     const res2 = await createSecurityRecordIfAbsent(db, second);
     expect(res2).toEqual({ created: false, existing: first });
     await expect(loadSecurityRecord(db)).resolves.toEqual(first);
+  });
+
+  it('persists independent PIN and Master Password throttle counts/cooldowns, preserves them across restoreBackupAtomic, and clears them cleanly', async () => {
+    const db = await createTestDb();
+    await loadAppState(db);
+
+    await expect(loadSecurityThrottle(db)).resolves.toEqual({
+      key: 'throttle',
+      failedPinAttempts: 0,
+      pinCooldownUntil: 0,
+      failedMasterAttempts: 0,
+      masterCooldownUntil: 0,
+    });
+
+    // 4 failed PIN attempts: no cooldown yet
+    for (let i = 1; i <= 4; i += 1) {
+      const updated = await recordFailedAttemptAtomic(db, 'pin', 100_000 + i);
+      expect(updated.failedPinAttempts).toBe(i);
+      expect(updated.pinCooldownUntil).toBe(0);
+    }
+
+    // 5th failed PIN attempt sets 30s cooldown, leaving Master counter untouched
+    const pinLocked = await recordFailedAttemptAtomic(db, 'pin', 100_005);
+    expect(pinLocked).toEqual({
+      key: 'throttle',
+      failedPinAttempts: 5,
+      pinCooldownUntil: 130_005,
+      failedMasterAttempts: 0,
+      masterCooldownUntil: 0,
+    });
+
+    // 5 failed Master attempts trigger Master cooldown independently
+    for (let i = 1; i <= 4; i += 1) {
+      await recordFailedAttemptAtomic(db, 'master', 200_000 + i);
+    }
+    const bothLocked = await recordFailedAttemptAtomic(db, 'master', 200_005);
+    expect(bothLocked).toEqual({
+      key: 'throttle',
+      failedPinAttempts: 5,
+      pinCooldownUntil: 130_005,
+      failedMasterAttempts: 5,
+      masterCooldownUntil: 230_005,
+    });
+
+    // Restoring a backup must not clear persisted throttle state
+    await restoreBackupAtomic(db, {
+      _note: '',
+      schemaVersion: 1,
+      exportedAt: '2026-11-27T11:00:00.000Z',
+      accounts: [makeAccount({ id: 'acc-restored' })],
+      categories: DEFAULT_CATEGORIES,
+      transactions: [],
+    });
+    await expect(loadSecurityThrottle(db)).resolves.toEqual(bothLocked);
+
+    // Clearing only PIN resets PIN fields without clearing Master fields
+    await expect(clearSecurityThrottle(db, 'pin')).resolves.toEqual({
+      key: 'throttle',
+      failedPinAttempts: 0,
+      pinCooldownUntil: 0,
+      failedMasterAttempts: 5,
+      masterCooldownUntil: 230_005,
+    });
+
+    // deleteSecurityRecord wipes both lock and throttle records
+    await deleteSecurityRecord(db);
+    await expect(loadSecurityThrottle(db)).resolves.toEqual({
+      key: 'throttle',
+      failedPinAttempts: 0,
+      pinCooldownUntil: 0,
+      failedMasterAttempts: 0,
+      masterCooldownUntil: 0,
+    });
   });
 });
