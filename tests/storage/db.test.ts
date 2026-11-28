@@ -1,22 +1,31 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import type { IDBPDatabase } from 'idb';
+import { openDB, type IDBPDatabase } from 'idb';
 import {
   DEFAULT_CATEGORIES,
   DEFAULT_SETTINGS,
   type BackupPayload,
   type BankAccount,
   type Category,
+  type SecurityRecord,
   type Transaction,
 } from '../../src/domain/types';
 import {
+  clearSecurityThrottle,
+  createSecurityRecordIfAbsent,
   createTransactionAtomic,
+  deleteSecurityRecord,
   deleteTransactionAtomic,
   loadAppState,
+  loadSecurityRecord,
+  loadSecurityThrottle,
   markBackupOrExportCompleted,
   openAppDb,
+  recordFailedAttemptAtomic,
   restoreBackupAtomic,
+  restoreDeletedTransactionAtomic,
   saveAccount,
   saveCategory,
+  saveSecurityRecord,
   saveSettings,
   updateTransactionAtomic,
   type MomExpenseDbSchema,
@@ -311,5 +320,282 @@ describe('IndexedDB persistence layer', () => {
     // Existing DB state remains intact after rejected restore
     const afterFailed = await loadAppState(db);
     expect(afterFailed.accounts.map((a) => a.id)).toEqual(['acc-closed']);
+  });
+
+  it('upgrades an existing v1 database to v2 preserving all data and creating the security store', async () => {
+    testCounter += 1;
+    const dbName = `mom-expense-v1-upgrade-${Date.now()}-${testCounter}`;
+
+    const seededAccount = makeAccount({ id: 'acc-v1', name: 'SBI v1' });
+    const seededTx = makeTransaction({ id: 'tx-v1', accountId: 'acc-v1', amountPaise: 12345 });
+
+    const v1Db = await openDB(dbName, 1, {
+      upgrade(db) {
+        db.createObjectStore('accounts', { keyPath: 'id' });
+        db.createObjectStore('categories', { keyPath: 'id' });
+        const txStore = db.createObjectStore('transactions', { keyPath: 'id' });
+        txStore.createIndex('by-date', 'date');
+        txStore.createIndex('by-account', 'accountId');
+        db.createObjectStore('settings', { keyPath: 'key' });
+      },
+    });
+    await v1Db.put('accounts', seededAccount);
+    await v1Db.put('categories', DEFAULT_CATEGORIES[0]);
+    await v1Db.put('transactions', seededTx);
+    await v1Db.put('settings', {
+      key: 'app',
+      ...DEFAULT_SETTINGS,
+      lastUsedAccountId: 'acc-v1',
+      changesSinceLastBackup: 4,
+    });
+    v1Db.close();
+
+    const upgradedDb = await openAppDb(dbName);
+    openDbs.push(upgradedDb);
+
+    expect(upgradedDb.version).toBe(2);
+    expect(upgradedDb.objectStoreNames.contains('security')).toBe(true);
+
+    const state = await loadAppState(upgradedDb);
+    expect(state.accounts).toEqual([seededAccount]);
+    expect(state.categories).toEqual([DEFAULT_CATEGORIES[0]]);
+    expect(state.transactions).toEqual([seededTx]);
+    expect(state.settings.lastUsedAccountId).toBe('acc-v1');
+    expect(state.settings.changesSinceLastBackup).toBe(4);
+    await expect(loadSecurityRecord(upgradedDb)).resolves.toBeNull();
+  });
+
+  it('loads, saves, and deletes the security lock record', async () => {
+    const db = await createTestDb();
+
+    await expect(loadSecurityRecord(db)).resolves.toBeNull();
+
+    const record: SecurityRecord = {
+      key: 'lock',
+      pinHash: {
+        algorithm: 'PBKDF2-SHA256',
+        iterations: 100_000,
+        saltB64: 'c2FsdDE=',
+        hashB64: 'aGFzaDE=',
+      },
+      masterPasswordHash: {
+        algorithm: 'PBKDF2-SHA256',
+        iterations: 100_000,
+        saltB64: 'c2FsdDI=',
+        hashB64: 'aGFzaDI=',
+      },
+      updatedAt: '2026-11-27T10:00:00.000Z',
+    };
+
+    await saveSecurityRecord(db, record);
+    await expect(loadSecurityRecord(db)).resolves.toEqual(record);
+
+    await deleteSecurityRecord(db);
+    await expect(loadSecurityRecord(db)).resolves.toBeNull();
+  });
+
+  it('restoreBackupAtomic does not delete or overwrite an existing security lock record', async () => {
+    const db = await createTestDb();
+    await loadAppState(db);
+
+    const lockRecord: SecurityRecord = {
+      key: 'lock',
+      pinHash: {
+        algorithm: 'PBKDF2-SHA256',
+        iterations: 100_000,
+        saltB64: 'c2FsdDE=',
+        hashB64: 'aGFzaDE=',
+      },
+      masterPasswordHash: {
+        algorithm: 'PBKDF2-SHA256',
+        iterations: 100_000,
+        saltB64: 'c2FsdDI=',
+        hashB64: 'aGFzaDI=',
+      },
+      updatedAt: '2026-11-27T10:00:00.000Z',
+    };
+    await saveSecurityRecord(db, lockRecord);
+
+    const payload: BackupPayload = {
+      _note: '',
+      schemaVersion: 1,
+      exportedAt: '2026-11-27T11:00:00.000Z',
+      accounts: [makeAccount({ id: 'acc-restored' })],
+      categories: DEFAULT_CATEGORIES,
+      transactions: [],
+    };
+
+    await restoreBackupAtomic(db, payload);
+
+    await expect(loadSecurityRecord(db)).resolves.toEqual(lockRecord);
+  });
+
+  it('restoreDeletedTransactionAtomic restores a deleted transaction and decrements changesSinceLastBackup clamped at 0', async () => {
+    const db = await createTestDb();
+    await loadAppState(db);
+    await saveAccount(db, makeAccount({ id: 'acc-1' }));
+
+    const txRecord = makeTransaction({ id: 'tx-undo', accountId: 'acc-1', amountPaise: 5000 });
+    await createTransactionAtomic(db, txRecord);
+    const afterDelete = await deleteTransactionAtomic(db, 'tx-undo');
+    expect(afterDelete.changesSinceLastBackup).toBe(2);
+
+    const afterUndo = await restoreDeletedTransactionAtomic(db, txRecord);
+    expect(afterUndo.changesSinceLastBackup).toBe(1);
+
+    const state = await loadAppState(db);
+    expect(state.transactions).toEqual([txRecord]);
+
+    // Clamps at 0 when changesSinceLastBackup is already 0
+    await saveSettings(db, { changesSinceLastBackup: 0 });
+    const clamped = await restoreDeletedTransactionAtomic(
+      db,
+      makeTransaction({ id: 'tx-undo-2', accountId: 'acc-1' })
+    );
+    expect(clamped.changesSinceLastBackup).toBe(0);
+  });
+
+  it('createSecurityRecordIfAbsent stores when empty and refuses to overwrite an existing lock record', async () => {
+    const db = await createTestDb();
+    await loadAppState(db);
+
+    const first = {
+      key: 'lock' as const,
+      pinHash: {
+        algorithm: 'PBKDF2-SHA256' as const,
+        iterations: 100_000,
+        saltB64: 'c2FsdDE=',
+        hashB64: 'aGFzaDE=',
+      },
+      masterPasswordHash: {
+        algorithm: 'PBKDF2-SHA256' as const,
+        iterations: 100_000,
+        saltB64: 'c2FsdDI=',
+        hashB64: 'aGFzaDI=',
+      },
+      updatedAt: '2026-11-27T10:00:00.000Z',
+    };
+    const second = {
+      ...first,
+      pinHash: { ...first.pinHash, hashB64: 'b3ZlcndyaXRl' },
+      updatedAt: '2026-11-27T11:00:00.000Z',
+    };
+
+    const res1 = await createSecurityRecordIfAbsent(db, first);
+    expect(res1).toEqual({ created: true });
+
+    const res2 = await createSecurityRecordIfAbsent(db, second);
+    expect(res2).toEqual({ created: false, existing: first });
+    await expect(loadSecurityRecord(db)).resolves.toEqual(first);
+  });
+
+  it('persists independent PIN and Master Password throttle counts/cooldowns, preserves them across restoreBackupAtomic, and clears them cleanly', async () => {
+    const db = await createTestDb();
+    await loadAppState(db);
+
+    await expect(loadSecurityThrottle(db)).resolves.toEqual({
+      key: 'throttle',
+      failedPinAttempts: 0,
+      pinCooldownUntil: 0,
+      failedMasterAttempts: 0,
+      masterCooldownUntil: 0,
+    });
+
+    // 4 failed PIN attempts: no cooldown yet
+    for (let i = 1; i <= 4; i += 1) {
+      const updated = await recordFailedAttemptAtomic(db, 'pin', 100_000 + i);
+      expect(updated.failedPinAttempts).toBe(i);
+      expect(updated.pinCooldownUntil).toBe(0);
+    }
+
+    // 5th failed PIN attempt sets 30s cooldown, leaving Master counter untouched
+    const pinLocked = await recordFailedAttemptAtomic(db, 'pin', 100_005);
+    expect(pinLocked).toEqual({
+      key: 'throttle',
+      failedPinAttempts: 5,
+      pinCooldownUntil: 130_005,
+      failedMasterAttempts: 0,
+      masterCooldownUntil: 0,
+    });
+
+    // 5 failed Master attempts trigger Master cooldown independently
+    for (let i = 1; i <= 4; i += 1) {
+      await recordFailedAttemptAtomic(db, 'master', 200_000 + i);
+    }
+    const bothLocked = await recordFailedAttemptAtomic(db, 'master', 200_005);
+    expect(bothLocked).toEqual({
+      key: 'throttle',
+      failedPinAttempts: 5,
+      pinCooldownUntil: 130_005,
+      failedMasterAttempts: 5,
+      masterCooldownUntil: 230_005,
+    });
+
+    // Restoring a backup must not clear persisted throttle state
+    await restoreBackupAtomic(db, {
+      _note: '',
+      schemaVersion: 1,
+      exportedAt: '2026-11-27T11:00:00.000Z',
+      accounts: [makeAccount({ id: 'acc-restored' })],
+      categories: DEFAULT_CATEGORIES,
+      transactions: [],
+    });
+    await expect(loadSecurityThrottle(db)).resolves.toEqual(bothLocked);
+
+    // Clearing only PIN resets PIN fields without clearing Master fields
+    await expect(clearSecurityThrottle(db, 'pin')).resolves.toEqual({
+      key: 'throttle',
+      failedPinAttempts: 0,
+      pinCooldownUntil: 0,
+      failedMasterAttempts: 5,
+      masterCooldownUntil: 230_005,
+    });
+
+    // deleteSecurityRecord wipes both lock and throttle records
+    await deleteSecurityRecord(db);
+    await expect(loadSecurityThrottle(db)).resolves.toEqual({
+      key: 'throttle',
+      failedPinAttempts: 0,
+      pinCooldownUntil: 0,
+      failedMasterAttempts: 0,
+      masterCooldownUntil: 0,
+    });
+
+    // createSecurityRecordIfAbsent and saveSecurityRecord clear stale throttle atomically
+    await recordFailedAttemptAtomic(db, 'pin', 300_000);
+    const lockRecord: SecurityRecord = {
+      key: 'lock',
+      pinHash: {
+        algorithm: 'PBKDF2-SHA256',
+        iterations: 100_000,
+        saltB64: 'c2FsdDE=',
+        hashB64: 'aGFzaDE=',
+      },
+      masterPasswordHash: {
+        algorithm: 'PBKDF2-SHA256',
+        iterations: 100_000,
+        saltB64: 'c2FsdDI=',
+        hashB64: 'aGFzaDI=',
+      },
+      updatedAt: '2026-11-27T12:00:00.000Z',
+    };
+    await expect(createSecurityRecordIfAbsent(db, lockRecord)).resolves.toEqual({ created: true });
+    await expect(loadSecurityThrottle(db)).resolves.toEqual({
+      key: 'throttle',
+      failedPinAttempts: 0,
+      pinCooldownUntil: 0,
+      failedMasterAttempts: 0,
+      masterCooldownUntil: 0,
+    });
+
+    await recordFailedAttemptAtomic(db, 'master', 300_005);
+    await saveSecurityRecord(db, { ...lockRecord, updatedAt: '2026-11-27T12:05:00.000Z' });
+    await expect(loadSecurityThrottle(db)).resolves.toEqual({
+      key: 'throttle',
+      failedPinAttempts: 0,
+      pinCooldownUntil: 0,
+      failedMasterAttempts: 0,
+      masterCooldownUntil: 0,
+    });
   });
 });

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { ArrowLeft, Moon, Sun } from '@phosphor-icons/react';
+import { ArrowLeft, Lock, Moon, Sun } from '@phosphor-icons/react';
 import { useApp } from '../state/AppContext';
 
 export interface TopBarProps {
@@ -7,13 +7,20 @@ export interface TopBarProps {
   showBack?: boolean;
   onBack?: () => void;
   rightAction?: ReactNode;
+  showLock?: boolean;
 }
 
 /**
- * Sticky Android-style top app bar with optional back navigation, action slot, and theme toggle.
+ * Sticky Android-style top app bar with optional back navigation, lock button, action slot, and theme toggle.
  */
-export function TopBar({ title, showBack = false, onBack, rightAction }: TopBarProps) {
-  const { settings, toggleTheme, navigate } = useApp();
+export function TopBar({
+  title,
+  showBack = false,
+  onBack,
+  rightAction,
+  showLock = false,
+}: TopBarProps) {
+  const { settings, hasPin, isUnlocked, toggleTheme, navigate, lockApp } = useApp();
   const isDark = settings.theme === 'dark';
 
   return (
@@ -32,6 +39,17 @@ export function TopBar({ title, showBack = false, onBack, rightAction }: TopBarP
         <h1 className="topbar-title">{title}</h1>
       </div>
       <div className="topbar-actions">
+        {showLock && hasPin && isUnlocked && (
+          <button
+            type="button"
+            className="icon-btn icon-btn-outlined"
+            onClick={() => lockApp('Financial details locked.')}
+            aria-label="Lock financial details"
+            title="Lock financial details"
+          >
+            <Lock size={18} aria-hidden="true" />
+          </button>
+        )}
         {rightAction}
         <button
           type="button"

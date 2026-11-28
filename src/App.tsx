@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { BottomNav } from './components/BottomNav';
 import { EditTransactionDialog } from './components/EditTransactionDialog';
+import { PinModal } from './components/PinModal';
 import { AppProvider, useApp } from './state/AppContext';
 import { AllTransactionsView } from './views/AllTransactionsView';
 import { BankHistoryView } from './views/BankHistoryView';
@@ -12,8 +13,14 @@ import { RecordView } from './views/RecordView';
  * Main mobile phone-frame shell coordinating active view rendering, bottom navigation, and edit dialog.
  */
 export function AppShell() {
-  const { loading, view, navigate } = useApp();
+  const { loading, view, isLocked, navigate } = useApp();
   const [editingTxId, setEditingTxId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isLocked) {
+      setEditingTxId(null);
+    }
+  }, [isLocked]);
 
   if (loading) {
     return (
@@ -52,7 +59,11 @@ export function AppShell() {
           navigate('record');
         }}
       />
-      <EditTransactionDialog txId={editingTxId} onClose={() => setEditingTxId(null)} />
+      <EditTransactionDialog
+        txId={isLocked ? null : editingTxId}
+        onClose={() => setEditingTxId(null)}
+      />
+      <PinModal />
     </div>
   );
 }

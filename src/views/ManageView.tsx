@@ -1,7 +1,8 @@
 import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react';
-import { Moon, ShareNetwork, Sun } from '@phosphor-icons/react';
+import { Lock, Moon, ShareNetwork, Shield, Sun } from '@phosphor-icons/react';
 import { Banners } from '../components/Banners';
 import { ArchiveConfirmDialog, RestoreConfirmDialog } from '../components/ConfirmDialogs';
+import { LockedCard } from '../components/LockedCard';
 import { TopBar } from '../components/TopBar';
 import { computeAccountBalancePaise, getSortedTransactions } from '../domain/calculations';
 import {
@@ -23,8 +24,11 @@ export function ManageView() {
     transactions,
     settings,
     manageJumpTarget,
+    hasPin,
+    isLocked,
     clearManageJumpTarget,
     navigate,
+    openPinModal,
     toggleTheme,
     addAccount,
     renameAccount,
@@ -70,6 +74,14 @@ export function ManageView() {
     el?.scrollIntoView?.({ behavior: 'auto', block: 'start' });
     clearManageJumpTarget();
   }, [manageJumpTarget, clearManageJumpTarget]);
+
+  useEffect(() => {
+    if (isLocked) {
+      setArchiveConfirmAccountId(null);
+      setRestoreConfirmPayload(null);
+      setRestoreError('');
+    }
+  }, [isLocked]);
 
   const isDark = settings.theme === 'dark';
 
@@ -222,7 +234,7 @@ export function ManageView() {
 
   return (
     <>
-      <TopBar title="Manage & Settings" showBack onBack={() => navigate('home')} />
+      <TopBar title="Manage & Settings" showBack onBack={() => navigate('home')} showLock />
 
       <div className="phone-scroll">
         <Banners />
@@ -245,7 +257,69 @@ export function ManageView() {
           </div>
         </section>
 
-        <section id="sec-accounts" className="card form-stack" aria-label="Bank Accounts">
+        <section className="card form-stack" aria-label="PIN Lock">
+          <div className="row-between">
+            <div>
+              <div className="row-gap-8">
+                <h2 className="section-title">PIN Lock</h2>
+                <span className={hasPin ? 'pill pill-positive' : 'pill pill-neutral'}>
+                  {hasPin ? 'Enabled' : 'Off'}
+                </span>
+              </div>
+              <p className="sub-caption">
+                {hasPin
+                  ? 'Hides balances, spending, history, and exports until unlocked.'
+                  : 'Protect balances, spending, and transaction history with a 4–6 digit PIN.'}
+              </p>
+            </div>
+            <span
+              style={{
+                color: hasPin ? 'var(--color-secondary-ink)' : 'var(--color-muted-foreground)',
+              }}
+              aria-hidden="true"
+            >
+              <Shield size={18} aria-hidden="true" />
+            </span>
+          </div>
+
+          {hasPin ? (
+            <div className="filter-grid">
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => openPinModal('change')}
+              >
+                Change PIN
+              </button>
+              <button
+                type="button"
+                className="btn btn-danger-outline btn-sm"
+                onClick={() => openPinModal('disable')}
+              >
+                Turn Off PIN
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => openPinModal('setup')}
+            >
+              <Lock size={18} aria-hidden="true" />
+              <span>Set Up PIN</span>
+            </button>
+          )}
+        </section>
+
+        {isLocked ? (
+          <LockedCard
+            title="Accounts & exports are hidden"
+            copy="Unlock with your PIN to manage bank accounts, categories, CSV exports, and backups."
+            onUnlock={() => openPinModal('unlock')}
+          />
+        ) : (
+          <>
+            <section id="sec-accounts" className="card form-stack" aria-label="Bank Accounts">
           <div>
             <h2 className="section-title">Bank Accounts</h2>
             <p className="sub-caption">Add accounts, rename, adjust balance, or archive old ones.</p>
@@ -630,12 +704,14 @@ export function ManageView() {
             </p>
           )}
         </section>
+          </>
+        )}
 
         <p className="app-version num">Version {__APP_VERSION__}</p>
       </div>
 
       <ArchiveConfirmDialog
-        account={archiveTarget}
+        account={isLocked ? null : archiveTarget}
         balancePaise={archiveTargetBalance}
         onCancel={() => setArchiveConfirmAccountId(null)}
         onConfirm={() => {
@@ -656,7 +732,7 @@ export function ManageView() {
       />
 
       <RestoreConfirmDialog
-        payload={restoreConfirmPayload}
+        payload={isLocked ? null : restoreConfirmPayload}
         onCancel={() => setRestoreConfirmPayload(null)}
         onConfirm={() => {
           if (!restoreConfirmPayload || submitting) return;

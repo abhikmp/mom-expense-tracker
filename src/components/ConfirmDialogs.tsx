@@ -1,10 +1,14 @@
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { Warning } from '@phosphor-icons/react';
 import { formatRupees } from '../domain/money';
 import type { BackupPayload, BankAccount } from '../domain/types';
 
+const FOCUSABLE_SELECTOR =
+  'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])';
+
 /**
- * Shared accessible modal dialog shell with backdrop click and Escape-key dismissal.
+ * Shared accessible modal dialog shell with focus trapping, opener focus restoration,
+ * backdrop click, and Escape-key dismissal.
  */
 export function DialogShell({
   title,
@@ -15,15 +19,56 @@ export function DialogShell({
   onCancel: () => void;
   children: ReactNode;
 }) {
+  const panelRef = useRef<HTMLDivElement>(null);
+  const openerRef = useRef<HTMLElement | null>(null);
+  const onCancelRef = useRef(onCancel);
+  onCancelRef.current = onCancel;
+
   useEffect(() => {
+    openerRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+
+    const panel = panelRef.current;
+    if (panel && !panel.contains(document.activeElement)) {
+      const firstFocusable = panel.querySelector<HTMLElement>(FOCUSABLE_SELECTOR);
+      firstFocusable?.focus();
+    }
+
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        onCancel();
+        onCancelRef.current();
+        return;
+      }
+
+      if (event.key === 'Tab' && panel) {
+        const focusables = Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR));
+        if (focusables.length === 0) return;
+
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        const active = document.activeElement;
+
+        if (event.shiftKey) {
+          if (active === first || !panel.contains(active)) {
+            event.preventDefault();
+            last.focus();
+          }
+        } else if (active === last || !panel.contains(active)) {
+          event.preventDefault();
+          first.focus();
+        }
       }
     };
+
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onCancel]);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      const opener = openerRef.current;
+      if (opener && opener.isConnected) {
+        opener.focus();
+      }
+    };
+  }, []);
 
   return (
     <div
@@ -37,7 +82,7 @@ export function DialogShell({
         }
       }}
     >
-      <div className="dialog-panel">
+      <div className="dialog-panel" ref={panelRef}>
         <h2 className="section-title" style={{ margin: '0 0 14px' }}>
           {title}
         </h2>

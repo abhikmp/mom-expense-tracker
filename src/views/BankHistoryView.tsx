@@ -1,5 +1,6 @@
 import { ShareNetwork } from '@phosphor-icons/react';
 import { Banners } from '../components/Banners';
+import { LockedCard } from '../components/LockedCard';
 import { TopBar } from '../components/TopBar';
 import { TransactionRow } from '../components/TransactionRow';
 import { computeAccountBalancePaise, getSortedTransactions } from '../domain/calculations';
@@ -19,14 +20,34 @@ export function BankHistoryView({ onEditTx }: BankHistoryViewProps) {
     accounts,
     transactions,
     selectedBankId,
+    isLocked,
     navigate,
     openRecordForBank,
+    openPinModal,
     exportCsv,
   } = useApp();
 
   const acc = selectedBankId ? accounts.find((a) => a.id === selectedBankId) : undefined;
   if (!acc) {
     return <HomeView onEditTx={onEditTx} />;
+  }
+
+  if (isLocked) {
+    return (
+      <>
+        <TopBar title={acc.name} showBack onBack={() => navigate('home')} />
+        <div className="phone-scroll">
+          <Banners />
+          <LockedCard
+            title={`${acc.name} history is locked`}
+            copy="Unlock with your PIN to view this account's balance, ledger, and CSV export."
+            onUnlock={() => openPinModal('unlock')}
+            showBack
+            onBack={() => navigate('home')}
+          />
+        </div>
+      </>
+    );
   }
 
   const bankTxs = getSortedTransactions(transactions).filter((t) => t.accountId === acc.id);

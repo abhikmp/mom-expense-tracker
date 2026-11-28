@@ -1,5 +1,6 @@
 import { ShareNetwork } from '@phosphor-icons/react';
 import { Banners } from '../components/Banners';
+import { LockedCard } from '../components/LockedCard';
 import { TopBar } from '../components/TopBar';
 import { TransactionRow } from '../components/TransactionRow';
 import { filterTransactions } from '../domain/calculations';
@@ -18,11 +19,31 @@ export function AllTransactionsView({ onEditTx }: AllTransactionsViewProps) {
     categories,
     transactions,
     filters,
+    isLocked,
     setFilters,
     resetFilters,
+    openPinModal,
     exportCsv,
     navigate,
   } = useApp();
+
+  if (isLocked) {
+    return (
+      <>
+        <TopBar title="All Transactions" showBack onBack={() => navigate('home')} />
+        <div className="phone-scroll">
+          <Banners />
+          <LockedCard
+            title="Transaction history is locked"
+            copy="Unlock with your PIN to view, filter, edit, or export your transactions."
+            onUnlock={() => openPinModal('unlock')}
+            showBack
+            onBack={() => navigate('home')}
+          />
+        </div>
+      </>
+    );
+  }
 
   const filtered = filterTransactions(transactions, filters);
   const hasActiveFilters = Boolean(

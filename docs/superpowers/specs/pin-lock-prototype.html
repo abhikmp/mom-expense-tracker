@@ -1,0 +1,2024 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Mom's Expense Tracker — PIN Lock Interactive Prototype</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    /* ==========================================================================
+       APPROVED DESIGN TOKENS — Soft Cards (Light Default + High-Contrast Dark)
+       ========================================================================== */
+    :root,
+    [data-theme="light"] {
+      --outer-backdrop: #E2E8F0;
+      --color-background: #F8FAFC;
+      --color-card: #FFFFFF;
+      --color-muted: #EEF2F6;
+      --color-foreground: #020617;
+      --color-label: #334155;
+      --color-muted-foreground: #475569;
+      --color-primary: #0F172A;
+      --color-on-primary: #FFFFFF;
+      --color-primary-hover: #1E293B;
+      --color-secondary: #1E3A8A;
+      --color-secondary-soft: #DBEAFE;
+      --color-secondary-ink: #1E3A8A;
+      --color-bar-rest: #64748B;
+      --color-border: #E2E8F0;
+      --color-rule: #F1F5F9;
+      --color-control: #CBD5E1;
+
+      --color-positive: #166534;
+      --color-positive-bg: #DCFCE7;
+      --color-positive-ink: #14532D;
+
+      --color-warning-bg: #FFFBEB;
+      --color-warning-border: #FDE68A;
+      --color-warning-ink: #78350F;
+
+      --color-destructive: #DC2626;
+      --color-destructive-bg: #FEE2E2;
+      --color-destructive-ink: #991B1B;
+      --color-destructive-border: #FCA5A5;
+
+      --nav-pill-bg: #DBEAFE;
+      --nav-pill-ink: #1E3A8A;
+      --backdrop-scrim: rgba(2, 6, 23, 0.5);
+
+      --font-sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+      --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+
+      --radius-card: 20px;
+      --radius-control: 14px;
+      --radius-chip: 999px;
+      --space-gap: 16px;
+      --card-pad: 18px;
+      --row-pad-y: 14px;
+    }
+
+    [data-theme="dark"] {
+      --outer-backdrop: #05080F;
+      --color-background: #0B0F17;
+      --color-card: #131A26;
+      --color-muted: #1C2536;
+      --color-foreground: #F8FAFC;
+      --color-label: #E2E8F0;
+      --color-muted-foreground: #B6C2D2;
+      --color-primary: #F8FAFC;
+      --color-on-primary: #0F172A;
+      --color-primary-hover: #E2E8F0;
+      --color-secondary: #5B9BF8;
+      --color-secondary-soft: #172554;
+      --color-secondary-ink: #BFDBFE;
+      --color-bar-rest: #64748B;
+      --color-border: #232D3F;
+      --color-rule: #1B2332;
+      --color-control: #334155;
+
+      --color-positive: #4ADE80;
+      --color-positive-bg: #143322;
+      --color-positive-ink: #86EFAC;
+
+      --color-warning-bg: #261D0B;
+      --color-warning-border: #6B4C11;
+      --color-warning-ink: #FDE68A;
+
+      --color-destructive: #DC2626;
+      --color-destructive-bg: #3B1518;
+      --color-destructive-ink: #FCA5A5;
+      --color-destructive-border: #7F1D1D;
+
+      --nav-pill-bg: #172554;
+      --nav-pill-ink: #93C5FD;
+      --backdrop-scrim: rgba(0, 0, 0, 0.72);
+      color-scheme: dark;
+    }
+
+    *, *::before, *::after {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html {
+      font-family: var(--font-sans);
+      background: var(--outer-backdrop);
+      color: var(--color-foreground);
+      font-size: 16px;
+      line-height: 1.45;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100dvh;
+      background: var(--outer-backdrop);
+      color: var(--color-foreground);
+    }
+
+    button, input, select, textarea { font: inherit; color: inherit; }
+    input::placeholder, textarea::placeholder { color: var(--color-muted-foreground); opacity: 0.8; }
+    button { touch-action: manipulation; }
+
+    .num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+
+    /* ==========================================================================
+       PROTOTYPE SIMULATION BAR (Outside Phone Frame)
+       ========================================================================== */
+    .proto-shell {
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      padding: 0;
+    }
+
+    .proto-bar {
+      width: 100%;
+      max-width: 430px;
+      background: var(--color-card);
+      border-bottom: 1px solid var(--color-border);
+      padding: 10px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      font-size: 13px;
+    }
+
+    @media (min-width: 480px) {
+      .proto-shell { padding: 16px; }
+      .proto-bar {
+        border: 1px solid var(--color-border);
+        border-radius: 18px;
+      }
+    }
+
+    .proto-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .proto-title {
+      font-weight: 700;
+      font-size: 13px;
+      color: var(--color-foreground);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .proto-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .proto-btn {
+      min-height: 36px;
+      padding: 0 10px;
+      border-radius: 10px;
+      border: 1px solid var(--color-control);
+      background: var(--color-background);
+      color: var(--color-foreground);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      transition: background-color 140ms var(--ease-out), transform 140ms var(--ease-out);
+    }
+
+    .proto-btn:active { transform: scale(0.97); }
+    .proto-btn:focus-visible { outline: 2px solid var(--color-secondary); outline-offset: 2px; }
+    @media (hover: hover) and (pointer: fine) {
+      .proto-btn:hover { background: var(--color-muted); }
+    }
+
+    .proto-creds {
+      font-size: 12px;
+      color: var(--color-muted-foreground);
+      line-height: 1.35;
+    }
+
+    .proto-creds code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      background: var(--color-muted);
+      color: var(--color-foreground);
+      padding: 1px 5px;
+      border-radius: 6px;
+      font-size: 12px;
+    }
+
+    /* ==========================================================================
+       PHONE-ONLY ANDROID APP SHELL
+       ========================================================================== */
+    .phone-frame {
+      width: 100%;
+      max-width: 430px;
+      min-height: calc(100dvh - 108px);
+      background: var(--color-background);
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+
+    @media (min-width: 480px) {
+      .phone-frame {
+        min-height: 760px;
+        border: 1px solid var(--color-border);
+        border-radius: 28px;
+        overflow: clip;
+      }
+    }
+
+    .android-topbar {
+      position: sticky;
+      top: 0;
+      z-index: 30;
+      background: var(--color-card);
+      border-bottom: 1px solid var(--color-border);
+      padding: calc(6px + env(safe-area-inset-top)) 16px 6px;
+      min-height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .topbar-left { display: flex; align-items: center; gap: 6px; min-width: 0; }
+    .topbar-title {
+      margin: 0;
+      font-size: 20px;
+      font-weight: 700;
+      line-height: 1.2;
+      letter-spacing: -0.01em;
+      color: var(--color-foreground);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .topbar-actions { display: flex; align-items: center; gap: 6px; flex: none; }
+
+    .phone-scroll {
+      flex: 1;
+      padding: 16px 16px calc(92px + env(safe-area-inset-bottom));
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-gap);
+    }
+
+    /* ==========================================================================
+       BUTTONS & TOUCH TARGETS (>= 48dp / >= 44pt)
+       ========================================================================== */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-height: 48px;
+      padding: 0 16px;
+      border-radius: var(--radius-control);
+      border: 1px solid transparent;
+      font-size: 15px;
+      font-weight: 600;
+      line-height: 1.2;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background-color 140ms var(--ease-out), border-color 140ms var(--ease-out), transform 140ms var(--ease-out);
+    }
+
+    .btn:disabled { opacity: 0.55; cursor: not-allowed; }
+    .btn:not(:disabled):active, .icon-btn:active, .chip-btn:active, .tx-row-btn:active, .account-row-btn:active, .android-nav-btn:active, .seg-btn:active {
+      transform: scale(0.97);
+    }
+    .btn:focus-visible, .icon-btn:focus-visible, .chip-btn:focus-visible, .tx-row-btn:focus-visible, .account-row-btn:focus-visible, .android-nav-btn:focus-visible, .seg-btn:focus-visible, .link-btn:focus-visible {
+      outline: 2px solid var(--color-secondary);
+      outline-offset: 2px;
+    }
+
+    .btn-primary { background: var(--color-primary); color: var(--color-on-primary); }
+    .btn-secondary { background: var(--color-card); color: var(--color-foreground); border-color: var(--color-control); }
+    .btn-ghost { background: transparent; color: var(--color-foreground); padding: 0 10px; }
+    .btn-danger-outline { background: var(--color-card); color: var(--color-destructive-ink); border-color: var(--color-destructive-border); }
+    .btn-danger-fill { background: var(--color-destructive); color: #FFFFFF; }
+    .btn-sm { min-height: 44px; padding: 0 12px; font-size: 14px; }
+    .btn-block { width: 100%; }
+
+    .link-btn {
+      min-height: 44px;
+      padding: 0 8px;
+      border: 0;
+      border-radius: 10px;
+      background: transparent;
+      color: var(--color-secondary-ink);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .icon-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 48px;
+      min-height: 48px;
+      padding: 0;
+      border-radius: 999px;
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--color-foreground);
+      cursor: pointer;
+      flex: none;
+      transition: background-color 140ms var(--ease-out), transform 140ms var(--ease-out);
+    }
+
+    .icon-btn-outlined { border-color: var(--color-control); background: var(--color-card); border-radius: var(--radius-control); }
+
+    @media (hover: hover) and (pointer: fine) {
+      .btn-primary:not(:disabled):hover { background: var(--color-primary-hover); }
+      .btn-secondary:not(:disabled):hover, .icon-btn:hover, .btn-ghost:hover, .link-btn:hover { background: var(--color-muted); }
+      .tx-row-btn:hover, .account-row-btn:hover { background: var(--color-muted); }
+    }
+
+    /* ==========================================================================
+       CARDS, LOCKED STATES & BANNERS
+       ========================================================================== */
+    .card {
+      background: var(--color-card);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-card);
+      padding: var(--card-pad);
+    }
+    .card-flush { padding: 0; overflow: hidden; }
+    .card-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+    .card-header-padded { padding: var(--card-pad) var(--card-pad) 12px; margin-bottom: 0; border-bottom: 1px solid var(--color-rule); }
+    .section-title { margin: 0; font-size: 16px; font-weight: 600; line-height: 1.3; color: var(--color-foreground); }
+    .sub-caption { margin: 2px 0 0; font-size: 13px; font-weight: 500; color: var(--color-muted-foreground); line-height: 1.35; }
+    .app-version { margin: 4px 0 0; text-align: center; font-size: 12px; font-weight: 500; color: var(--color-muted-foreground); }
+
+    .lock-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      padding: 28px 20px;
+      gap: 12px;
+    }
+
+    .lock-badge {
+      width: 56px;
+      height: 56px;
+      border-radius: 18px;
+      background: var(--color-secondary-soft);
+      color: var(--color-secondary-ink);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex: none;
+    }
+
+    .lock-card-title {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--color-foreground);
+      line-height: 1.3;
+    }
+
+    .lock-card-copy {
+      margin: 0;
+      font-size: 14px;
+      color: var(--color-muted-foreground);
+      max-width: 28ch;
+      line-height: 1.45;
+    }
+
+    .lock-card-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      width: 100%;
+      margin-top: 4px;
+    }
+
+    .banner { display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: var(--radius-card); border: 1px solid var(--color-border); animation: bannerEnter 180ms var(--ease-out); }
+    .banner-warning { background: var(--color-warning-bg); border-color: var(--color-warning-border); color: var(--color-warning-ink); }
+    .banner-success { background: var(--color-positive-bg); border-color: var(--color-positive-bg); color: var(--color-positive-ink); }
+    .banner-error { background: var(--color-destructive-bg); border-color: var(--color-destructive-border); color: var(--color-destructive-ink); }
+    .banner-copy { display: flex; align-items: flex-start; gap: 10px; font-size: 14px; font-weight: 500; line-height: 1.4; }
+    .banner-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    @keyframes bannerEnter { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+
+    .balance-label { font-size: 14px; font-weight: 500; color: var(--color-muted-foreground); }
+    .balance-hero { margin: 4px 0 0; font-size: 32px; font-weight: 700; line-height: 1.15; letter-spacing: -0.02em; color: var(--color-foreground); }
+
+    .account-rows { display: flex; flex-direction: column; }
+    .account-row-btn {
+      width: 100%;
+      min-height: 62px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: var(--row-pad-y) var(--card-pad);
+      border: 0;
+      border-bottom: 1px solid var(--color-rule);
+      background: transparent;
+      text-align: left;
+      cursor: pointer;
+      transition: background-color 140ms var(--ease-out), transform 140ms var(--ease-out);
+    }
+    .account-row-btn:last-child { border-bottom: 0; }
+    .account-name { font-size: 16px; font-weight: 600; color: var(--color-foreground); }
+    .account-sub { font-size: 13px; font-weight: 500; color: var(--color-muted-foreground); }
+    .account-right { display: flex; align-items: center; gap: 8px; flex: none; }
+    .account-amount { font-size: 17px; font-weight: 700; color: var(--color-foreground); white-space: nowrap; }
+    .row-chevron { color: var(--color-muted-foreground); display: inline-flex; align-items: center; }
+
+    /* Spending & Transaction Rows */
+    .spend-header { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+    .spend-header-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+    .month-switcher { display: inline-flex; align-items: center; gap: 4px; }
+    .month-label { min-width: 112px; text-align: center; font-size: 14px; font-weight: 600; color: var(--color-foreground); }
+    .spend-list { display: flex; flex-direction: column; gap: 14px; }
+    .spend-top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+    .spend-cat { font-size: 15px; font-weight: 600; color: var(--color-foreground); display: flex; align-items: center; gap: 8px; }
+    .spend-pct { font-size: 13px; font-weight: 500; color: var(--color-muted-foreground); }
+    .spend-val { font-size: 16px; font-weight: 700; color: var(--color-foreground); white-space: nowrap; }
+    .spend-track { height: 8px; width: 100%; border-radius: 999px; background: var(--color-muted); overflow: hidden; }
+    .spend-fill { height: 100%; border-radius: 999px; background: var(--color-bar-rest); transition: width 220ms var(--ease-out); }
+    .spend-fill-lead { background: var(--color-secondary); }
+
+    .tx-list { display: flex; flex-direction: column; }
+    .tx-row-btn {
+      width: 100%;
+      min-height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: var(--row-pad-y) var(--card-pad);
+      border: 0;
+      border-bottom: 1px solid var(--color-rule);
+      background: transparent;
+      text-align: left;
+      cursor: pointer;
+      transition: background-color 140ms var(--ease-out), transform 140ms var(--ease-out);
+    }
+    .tx-row-btn:last-child { border-bottom: 0; }
+    .tx-left { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 3px; }
+    .tx-primary { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 16px; font-weight: 600; color: var(--color-foreground); }
+    .tx-meta { font-size: 13px; font-weight: 500; color: var(--color-muted-foreground); line-height: 1.35; }
+    .tx-right { flex: none; text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+    .tx-amount { font-size: 17px; font-weight: 700; color: var(--color-foreground); white-space: nowrap; }
+    .tx-amount-positive { color: var(--color-positive); }
+    .tx-date { font-size: 13px; font-weight: 500; color: var(--color-muted-foreground); white-space: nowrap; }
+
+    .pill { display: inline-flex; align-items: center; min-height: 22px; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; flex: none; }
+    .pill-neutral { background: var(--color-muted); color: var(--color-label); }
+    .pill-positive { background: var(--color-positive-bg); color: var(--color-positive-ink); }
+    .pill-secondary { background: var(--color-secondary-soft); color: var(--color-secondary-ink); }
+
+    /* ==========================================================================
+       FORMS, SEGMENTED TOGGLES, CHIPS & PASSWORDS
+       ========================================================================== */
+    .form-stack { display: flex; flex-direction: column; gap: 16px; }
+    .field-label { display: block; margin-bottom: 8px; font-size: 14px; font-weight: 600; color: var(--color-label); }
+    .field-hint { margin: 6px 0 0; font-size: 13px; color: var(--color-muted-foreground); line-height: 1.4; }
+    .field-error { margin: 6px 0 0; font-size: 14px; font-weight: 600; color: var(--color-destructive-ink); }
+
+    .segmented-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; padding: 4px; border-radius: 999px; background: var(--color-muted); border: 1px solid var(--color-border); }
+    .seg-btn { min-height: 44px; border: 1px solid transparent; border-radius: 999px; background: transparent; color: var(--color-label); font-size: 15px; font-weight: 600; cursor: pointer; transition: background-color 140ms var(--ease-out), color 140ms var(--ease-out), transform 140ms var(--ease-out); }
+    .seg-btn[aria-pressed="true"] { background: var(--color-card); color: var(--color-foreground); border-color: var(--color-control); }
+    .segmented-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+
+    .amount-box { display: flex; align-items: center; gap: 8px; padding: 8px 14px; min-height: 62px; border: 1.5px solid var(--color-control); border-radius: var(--radius-control); background: var(--color-card); }
+    .amount-box:focus-within { border-color: var(--color-secondary); outline: 2px solid var(--color-secondary-soft); }
+    .amount-currency { font-size: 26px; font-weight: 700; color: var(--color-muted-foreground); }
+    .amount-input { width: 100%; border: 0; outline: none; background: transparent; font-size: 28px; font-weight: 700; color: var(--color-foreground); }
+
+    .text-input, .select-input { width: 100%; min-height: 48px; padding: 0 12px; border: 1px solid var(--color-control); border-radius: var(--radius-control); background: var(--color-card); color: var(--color-foreground); font-size: 16px; }
+    .text-input:focus, .select-input:focus { outline: 2px solid var(--color-secondary); outline-offset: 1px; }
+    .text-input:disabled { opacity: 0.6; cursor: not-allowed; background: var(--color-muted); }
+
+    .pin-input {
+      letter-spacing: 0.25em;
+      font-size: 20px;
+      font-weight: 700;
+      text-align: center;
+    }
+
+    .input-with-toggle {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+    .input-with-toggle .text-input {
+      padding-right: 52px;
+    }
+    .input-eye-btn {
+      position: absolute;
+      right: 2px;
+      min-width: 44px;
+      min-height: 44px;
+      border: 0;
+      border-radius: 12px;
+      background: transparent;
+      color: var(--color-muted-foreground);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+    .input-eye-btn:focus-visible { outline: 2px solid var(--color-secondary); outline-offset: 1px; }
+    @media (hover: hover) and (pointer: fine) {
+      .input-eye-btn:hover { color: var(--color-foreground); background: var(--color-muted); }
+    }
+
+    .chip-wrap { display: flex; flex-wrap: wrap; gap: 8px; }
+    .chip-btn { min-height: 48px; padding: 0 16px; border-radius: var(--radius-chip); border: 1px solid var(--color-control); background: var(--color-card); color: var(--color-foreground); font-size: 15px; font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; transition: background-color 140ms var(--ease-out), border-color 140ms var(--ease-out), transform 140ms var(--ease-out); }
+    .chip-btn[aria-pressed="true"] { background: var(--color-primary); border-color: var(--color-primary); color: var(--color-on-primary); font-weight: 600; }
+    .chip-add-btn { border-style: dashed; color: var(--color-secondary-ink); border-color: var(--color-secondary); background: transparent; }
+
+    .filter-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .manage-item { display: flex; flex-direction: column; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--color-rule); }
+    .manage-item:last-child { border-bottom: 0; padding-bottom: 0; }
+
+    /* ==========================================================================
+       ANDROID BOTTOM NAVIGATION BAR
+       ========================================================================== */
+    .android-bottom-nav {
+      position: fixed;
+      left: 50%;
+      transform: translateX(-50%);
+      bottom: 0;
+      width: 100%;
+      max-width: 430px;
+      z-index: 40;
+      background: var(--color-card);
+      border-top: 1px solid var(--color-border);
+      padding: 6px 12px calc(6px + env(safe-area-inset-bottom));
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    @media (min-width: 480px) {
+      .android-bottom-nav { position: sticky; left: auto; transform: none; max-width: 100%; }
+      .phone-scroll { padding-bottom: 20px; }
+    }
+
+    .android-nav-btn { min-height: 54px; padding: 4px 8px; border: 0; border-radius: 12px; background: transparent; color: var(--color-muted-foreground); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: 13px; font-weight: 600; cursor: pointer; transition: color 140ms var(--ease-out), transform 140ms var(--ease-out); }
+    .nav-icon-pill { display: inline-flex; align-items: center; justify-content: center; width: 56px; height: 30px; border-radius: 999px; transition: background-color 140ms var(--ease-out), color 140ms var(--ease-out); }
+    .android-nav-btn[aria-current="page"] { color: var(--color-foreground); }
+    .android-nav-btn[aria-current="page"] .nav-icon-pill { background: var(--nav-pill-bg); color: var(--nav-pill-ink); }
+
+    /* ==========================================================================
+       CENTERED DIALOGS
+       ========================================================================== */
+    .overlay-backdrop { position: fixed; inset: 0; z-index: 100; background: var(--backdrop-scrim); display: flex; align-items: center; justify-content: center; padding: 16px; animation: fadeOverlay 160ms var(--ease-out); }
+    .dialog-panel { width: 100%; max-width: 400px; max-height: 86dvh; overflow-y: auto; background: var(--color-card); border: 1px solid var(--color-border); border-radius: 20px; padding: 20px; animation: dialogIn 200ms var(--ease-out); }
+    @keyframes fadeOverlay { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes dialogIn { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+    }
+
+    .row-between { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .row-gap-8 { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+
+  <script>
+    const TODAY = "2026-11-27";
+    const DEFAULT_CATEGORIES = [
+      { id: "cat-groceries", name: "Groceries", hidden: false, sortOrder: 1 },
+      { id: "cat-bills", name: "Bills", hidden: false, sortOrder: 2 },
+      { id: "cat-medical", name: "Medical", hidden: false, sortOrder: 3 },
+      { id: "cat-household", name: "Household", hidden: false, sortOrder: 4 },
+      { id: "cat-travel", name: "Travel", hidden: false, sortOrder: 5 },
+      { id: "cat-other", name: "Other", hidden: false, sortOrder: 6 }
+    ];
+
+    const state = {
+      theme: "light",
+      view: "home",
+      selectedBankId: null,
+      selectedMonth: "2026-11",
+      lastUsedAccountId: "acc-sbi",
+      backupDueDays: 34,
+      backupDismissed: false,
+      saveBanner: null,
+      saveBannerTimer: null,
+      statusToast: null,
+      statusToastTone: "success",
+      statusToastTimer: null,
+      lastDeletedTx: null,
+      filters: { fromDate: "", toDate: "", typeKey: "all", categoryId: "all" },
+
+      // Security / PIN Lock state (Approach A)
+      hasPin: true,
+      pinCode: "1234",
+      masterPassword: "momsecret123",
+      isUnlocked: false,
+      failedAttempts: 0,
+      cooldownUntil: 0,
+      cooldownTimer: null,
+
+      // Modal state
+      // null | { mode: "unlock" | "forgot-master" | "reset-pin" | "setup" | "change" | "disable", step?: number, error?: string, pendingAction?: function, showMaster?: boolean, showMasterConfirm?: boolean, currentPinValue?: string }
+      pinModal: null,
+      editingTxId: null,
+      confirmDeleteTxId: false,
+      lastOpenerSelector: null,
+
+      expensePaymentModes: ["GPay", "Cash", "Card"],
+      transferPaymentModes: ["GPay", "Cash", "Cheque"],
+      depositModes: ["Cash", "Cheque"],
+      recordForm: {
+        type: "expense",
+        direction: "outgoing",
+        amount: "",
+        accountId: "acc-sbi",
+        categoryId: "cat-groceries",
+        expenseMode: "GPay",
+        transferMode: "GPay",
+        depositMode: "Cash",
+        date: TODAY,
+        note: "",
+        error: ""
+      },
+
+      accounts: [
+        { id: "acc-sbi", name: "SBI Savings", startingBalancePaise: 4650000, createdAt: "2026-10-01T09:00:00Z", archived: false },
+        { id: "acc-hdfc", name: "HDFC Bank", startingBalancePaise: 1580000, createdAt: "2026-10-01T09:05:00Z", archived: false },
+        { id: "acc-canara", name: "Canara Pension", startingBalancePaise: 0, createdAt: "2026-09-15T09:00:00Z", archived: true }
+      ],
+      categories: JSON.parse(JSON.stringify(DEFAULT_CATEGORIES)),
+      transactions: [
+        { id: "tx-14", type: "expense", direction: "outgoing", amountPaise: 48500, accountId: "acc-sbi", categoryId: "cat-groceries", mode: "GPay", date: "2026-11-27", note: "Vegetables & milk", createdAt: "2026-11-27T08:15:00Z" },
+        { id: "tx-13", type: "expense", direction: "outgoing", amountPaise: 124050, accountId: "acc-hdfc", categoryId: "cat-medical", mode: "Card", date: "2026-11-25", note: "Apollo Pharmacy medicines", createdAt: "2026-11-25T17:10:00Z" },
+        { id: "tx-12", type: "transfer", direction: "outgoing", amountPaise: 200000, accountId: "acc-sbi", categoryId: null, mode: "GPay", date: "2026-11-22", note: "GPay to Ravi (gardener)", createdAt: "2026-11-22T11:30:00Z" },
+        { id: "tx-11", type: "expense", direction: "outgoing", amountPaise: 189000, accountId: "acc-sbi", categoryId: "cat-bills", mode: "GPay", date: "2026-11-20", note: "Electricity bill BESCOM", createdAt: "2026-11-20T10:00:00Z" },
+        { id: "tx-10", type: "deposit", direction: "incoming", amountPaise: 800000, accountId: "acc-sbi", categoryId: null, mode: "Cash", date: "2026-11-18", note: "Cash deposit at branch", createdAt: "2026-11-18T12:20:00Z" },
+        { id: "tx-09", type: "expense", direction: "outgoing", amountPaise: 96500, accountId: "acc-hdfc", categoryId: "cat-groceries", mode: "Card", date: "2026-11-15", note: "More Supermarket rice & oil", createdAt: "2026-11-15T18:00:00Z" },
+        { id: "tx-08", type: "expense", direction: "outgoing", amountPaise: 62000, accountId: "acc-sbi", categoryId: "cat-household", mode: "GPay", date: "2026-11-12", note: "Gas cylinder refill", createdAt: "2026-11-12T09:45:00Z" },
+        { id: "tx-07", type: "transfer", direction: "incoming", amountPaise: 500000, accountId: "acc-hdfc", categoryId: null, mode: "GPay", date: "2026-11-10", note: "Monthly allowance from son", createdAt: "2026-11-10T09:00:00Z" },
+        { id: "tx-06", type: "expense", direction: "outgoing", amountPaise: 34000, accountId: "acc-sbi", categoryId: "cat-travel", mode: "GPay", date: "2026-11-08", note: "Auto to temple & back", createdAt: "2026-11-08T16:15:00Z" },
+        { id: "tx-05", type: "expense", direction: "outgoing", amountPaise: 74900, accountId: "acc-hdfc", categoryId: "cat-bills", mode: "Card", date: "2026-11-05", note: "Mobile & fiber broadband", createdAt: "2026-11-05T11:00:00Z" },
+        { id: "tx-04", type: "expense", direction: "outgoing", amountPaise: 51000, accountId: "acc-sbi", categoryId: "cat-other", mode: "GPay", date: "2026-11-02", note: "Temple flowers & sweets", createdAt: "2026-11-02T07:50:00Z" },
+        { id: "tx-03", type: "expense", direction: "outgoing", amountPaise: 142000, accountId: "acc-sbi", categoryId: "cat-groceries", mode: "Card", date: "2026-10-25", note: "Monthly kirana store", createdAt: "2026-10-25T14:10:00Z" }
+      ]
+    };
+
+    const ICONS = {
+      house: `<svg width="20" height="20" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M152 208V160a8 8 0 0 0-8-8h-32a8 8 0 0 0-8 8v48a8 8 0 0 1-8 8H48a8 8 0 0 1-8-8V115.54a8 8 0 0 1 2.62-5.92l80-75.54a8 8 0 0 1 10.76 0l80 75.54a8 8 0 0 1 2.62 5.92V208a8 8 0 0 1-8 8h-48a8 8 0 0 1-8-8Z"/></svg>`,
+      plusCircle: `<svg width="20" height="20" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="128" cy="128" r="96"/><line x1="88" y1="128" x2="168" y2="128"/><line x1="128" y1="88" x2="128" y2="168"/></svg>`,
+      sliders: `<svg width="16" height="16" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="40" y1="80" x2="216" y2="80"/><line x1="40" y1="176" x2="216" y2="176"/><circle cx="96" cy="80" r="20" fill="var(--color-card)"/><circle cx="160" cy="176" r="20" fill="var(--color-card)"/></svg>`,
+      moon: `<svg width="20" height="20" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M210.69 158.18A96.78 96.78 0 0 1 192 160 96.11 96.11 0 0 1 96 64a96.78 96.78 0 0 1 1.82-18.69A88.06 88.06 0 1 0 210.69 158.18Z"/></svg>`,
+      sun: `<svg width="20" height="20" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="128" cy="128" r="52"/><line x1="128" y1="24" x2="128" y2="48"/><line x1="128" y1="208" x2="128" y2="232"/><line x1="24" y1="128" x2="48" y2="128"/><line x1="208" y1="128" x2="232" y2="128"/><line x1="54.46" y1="54.46" x2="71.43" y2="71.43"/><line x1="184.57" y1="184.57" x2="201.54" y2="201.54"/><line x1="201.54" y1="54.46" x2="184.57" y2="71.43"/><line x1="71.43" y1="184.57" x2="54.46" y2="201.54"/></svg>`,
+      arrowLeft: `<svg width="20" height="20" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="216" y1="128" x2="40" y2="128"/><polyline points="112 56 40 128 112 200"/></svg>`,
+      caretLeft: `<svg width="16" height="16" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="22" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="160 208 80 128 160 48"/></svg>`,
+      caretRight: `<svg width="16" height="16" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="22" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="96 48 176 128 96 208"/></svg>`,
+      share: `<svg width="16" height="16" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M176 104h24a8 8 0 0 1 8 8v96a8 8 0 0 1-8 8H56a8 8 0 0 1-8-8V112a8 8 0 0 1 8-8H80"/><polyline points="88 64 128 24 168 64"/><line x1="128" y1="24" x2="128" y2="144"/></svg>`,
+      check: `<svg width="18" height="18" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="22" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="40 144 96 200 224 72"/></svg>`,
+      warning: `<svg width="18" height="18" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M114.15 39.89 25.88 192.11A16 16 0 0 0 39.73 216H216.27a16 16 0 0 0 13.85-23.89L141.85 39.89a16 16 0 0 0-27.7 0Z"/><line x1="128" y1="104" x2="128" y2="144"/><circle cx="128" cy="176" r="10" fill="currentColor"/></svg>`,
+      lock: `<svg width="20" height="20" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="40" y="88" width="176" height="128" rx="8"/><path d="M88 88V56a40 40 0 0 1 80 0v32"/><circle cx="128" cy="152" r="12" fill="currentColor"/></svg>`,
+      lockLg: `<svg width="26" height="26" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="40" y="88" width="176" height="128" rx="8"/><path d="M88 88V56a40 40 0 0 1 80 0v32"/><circle cx="128" cy="152" r="12" fill="currentColor"/></svg>`,
+      lockOpen: `<svg width="18" height="18" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="40" y="88" width="176" height="128" rx="8"/><path d="M88 88V56a40 40 0 0 1 78.69-10.35"/><circle cx="128" cy="152" r="12" fill="currentColor"/></svg>`,
+      shield: `<svg width="18" height="18" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M216 112V56a8 8 0 0 0-8-8H48a8 8 0 0 0-8 8v56c0 96 88 120 88 120s88-24 88-120Z"/></svg>`,
+      eye: `<svg width="20" height="20" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M128 56C48 56 16 128 16 128s32 72 112 72 112-72 112-72-32-72-112-72Z"/><circle cx="128" cy="128" r="32"/></svg>`,
+      eyeSlash: `<svg width="20" height="20" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="48" y1="40" x2="208" y2="216"/><path d="M154.91 157.6a40 40 0 0 1-53.82-59.2"/><path d="M135.53 88.71a40 40 0 0 1 32.3 35.53"/><path d="M208.61 169.1C230.41 149.58 240 128 240 128S208 56 128 56a126 126 0 0 0-20.68 1.68"/><path d="M74 68.6C33.23 89.24 16 128 16 128s32 72 112 72a118.05 118.05 0 0 0 54-12.6"/></svg>`,
+      clock: `<svg width="14" height="14" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="128" cy="128" r="96"/><polyline points="128 72 128 128 184 128"/></svg>`,
+      refresh: `<svg width="14" height="14" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="176 96 224 96 224 48"/><path d="M210.58 96A96 96 0 1 0 218.21 160"/></svg>`
+    };
+
+    function isLocked() {
+      return state.hasPin && !state.isUnlocked;
+    }
+
+    function escapeHtml(str) {
+      return String(str ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    }
+
+    function formatRupees(paise, opts = {}) {
+      const sign = opts.signed ? (paise < 0 ? "-" : "+") : (paise < 0 ? "-" : "");
+      const absPaise = Math.abs(paise);
+      const rupees = absPaise / 100;
+      const hasFraction = absPaise % 100 !== 0;
+      const formatted = new Intl.NumberFormat("en-IN", { minimumFractionDigits: hasFraction ? 2 : 0, maximumFractionDigits: 2 }).format(rupees);
+      return `${sign}₹${formatted}`;
+    }
+
+    function parseRupeesToPaise(raw) {
+      const cleaned = String(raw || "").trim().replace(/,/g, "");
+      if (!/^\d+(\.\d{1,2})?$/.test(cleaned)) return null;
+      const num = Number(cleaned);
+      return Number.isFinite(num) && num > 0 ? Math.round(num * 100) : null;
+    }
+
+    function computeAccountBalancePaise(acc) {
+      let net = 0;
+      for (const tx of state.transactions) {
+        if (tx.accountId !== acc.id) continue;
+        net += tx.direction === "incoming" ? tx.amountPaise : -tx.amountPaise;
+      }
+      return acc.startingBalancePaise + net;
+    }
+
+    function getActiveAccounts() { return state.accounts.filter((a) => !a.archived); }
+    function computeTotalActiveBalancePaise() { return getActiveAccounts().reduce((s, a) => s + computeAccountBalancePaise(a), 0); }
+    function getCategoryById(id) { return state.categories.find((c) => c.id === id) || null; }
+    function getAccountById(id) { return state.accounts.find((a) => a.id === id) || null; }
+
+    function formatDateShort(iso) {
+      if (iso === TODAY) return "Today";
+      if (iso === "2026-11-25") return "25 Nov";
+      const [y, m, d] = iso.split("-").map(Number);
+      return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("en-IN", { day: "numeric", month: "short", timeZone: "UTC" });
+    }
+
+    function formatMonthTitle(ym) {
+      const [y, m] = ym.split("-").map(Number);
+      return new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString("en-IN", { month: "long", year: "numeric", timeZone: "UTC" });
+    }
+
+    function shiftMonth(ym, delta) {
+      const [y, m] = ym.split("-").map(Number);
+      const dt = new Date(Date.UTC(y, m - 1 + delta, 1));
+      return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, "0")}`;
+    }
+
+    function getSortedTransactions(list = state.transactions) {
+      return [...list].sort((a, b) => (a.date !== b.date ? b.date.localeCompare(a.date) : b.createdAt.localeCompare(a.createdAt)));
+    }
+
+    function computeMonthlyCategorySpending(ym) {
+      const map = new Map();
+      let total = 0;
+      for (const tx of state.transactions) {
+        if (tx.type !== "expense" || !tx.date.startsWith(ym)) continue;
+        const catId = tx.categoryId || "cat-other";
+        map.set(catId, (map.get(catId) || 0) + tx.amountPaise);
+        total += tx.amountPaise;
+      }
+      const rows = [...map.entries()].map(([catId, amountPaise]) => {
+        const cat = getCategoryById(catId);
+        return { categoryId: catId, name: cat ? cat.name : "Other", amountPaise, sharePct: total > 0 ? Math.round((amountPaise / total) * 100) : 0 };
+      }).sort((a, b) => b.amountPaise - a.amountPaise);
+      return { totalPaise: total, rows };
+    }
+
+    function getFilteredTransactions() {
+      const f = state.filters;
+      return getSortedTransactions().filter((tx) => {
+        if (f.fromDate && tx.date < f.fromDate) return false;
+        if (f.toDate && tx.date > f.toDate) return false;
+        if (f.typeKey === "expense" && tx.type !== "expense") return false;
+        if (f.typeKey === "deposit" && tx.type !== "deposit") return false;
+        if (f.typeKey === "transfer-outgoing" && !(tx.type === "transfer" && tx.direction === "outgoing")) return false;
+        if (f.typeKey === "transfer-incoming" && !(tx.type === "transfer" && tx.direction === "incoming")) return false;
+        if (f.categoryId !== "all" && (tx.type !== "expense" || tx.categoryId !== f.categoryId)) return false;
+        return true;
+      });
+    }
+
+    function setToast(msg, durationMs = 2000, opts = {}) {
+      clearTimeout(state.statusToastTimer);
+      state.statusToast = msg;
+      state.statusToastTone = opts.tone ?? "success";
+      state.lastDeletedTx = opts.undoTx ?? null;
+      state.statusToastTimer = setTimeout(() => {
+        state.statusToast = null;
+        state.statusToastTone = "success";
+        state.lastDeletedTx = null;
+        renderApp();
+      }, durationMs);
+    }
+
+    function setSaveBanner(msg) {
+      clearTimeout(state.saveBannerTimer);
+      state.saveBanner = msg;
+      state.saveBannerTimer = setTimeout(() => {
+        state.saveBanner = null;
+        renderApp();
+      }, 2000);
+    }
+
+    function lockApp(reasonToast = null) {
+      if (!state.hasPin) return;
+      state.isUnlocked = false;
+      state.editingTxId = null;
+      state.confirmDeleteTxId = false;
+      state.lastDeletedTx = null;
+      if (state.view === "bank-tx" || state.view === "all") {
+        state.view = "home";
+        state.selectedBankId = null;
+      }
+      if (reasonToast) setToast(reasonToast);
+      renderApp();
+    }
+
+    function getCooldownRemainingSec() {
+      const rem = Math.ceil((state.cooldownUntil - Date.now()) / 1000);
+      return rem > 0 ? rem : 0;
+    }
+
+    function ensureCooldownTick() {
+      clearInterval(state.cooldownTimer);
+      if (getCooldownRemainingSec() <= 0) return;
+      state.cooldownTimer = setInterval(() => {
+        if (getCooldownRemainingSec() <= 0) {
+          clearInterval(state.cooldownTimer);
+          state.cooldownTimer = null;
+          if (state.pinModal) state.pinModal.error = "";
+        }
+        renderApp();
+      }, 1000);
+    }
+
+    function openPinModal(mode, opts = {}) {
+      state.pinModal = {
+        mode,
+        error: "",
+        showMaster: false,
+        showMasterConfirm: false,
+        pin1: "",
+        pin2: "",
+        currentPin: "",
+        masterInput: "",
+        masterConfirm: "",
+        ...opts
+      };
+      renderApp();
+      focusModalFirstInput();
+    }
+
+    function closePinModal() {
+      state.pinModal = null;
+      renderApp();
+      restoreOpenerFocus();
+    }
+
+    function captureOpenerFocus() {
+      const active = document.activeElement;
+      if (active && active.id) {
+        state.lastOpenerSelector = `#${CSS.escape(active.id)}`;
+      } else {
+        state.lastOpenerSelector = null;
+      }
+    }
+
+    function restoreOpenerFocus() {
+      if (!state.lastOpenerSelector) return;
+      const el = document.querySelector(state.lastOpenerSelector);
+      if (el) el.focus();
+      state.lastOpenerSelector = null;
+    }
+
+    function focusModalFirstInput() {
+      requestAnimationFrame(() => {
+        const panel = document.querySelector(".dialog-panel");
+        if (!panel) return;
+        const target = panel.querySelector("input:not([disabled]), button:not([disabled])");
+        if (target) target.focus();
+      });
+    }
+
+    function renderProtoBar() {
+      const statusLabel = !state.hasPin
+        ? `<span class="pill pill-neutral">PIN: Off</span>`
+        : state.isUnlocked
+          ? `<span class="pill pill-positive">PIN: On · Unlocked</span>`
+          : `<span class="pill pill-secondary">PIN: On · Locked</span>`;
+
+      const credsHint = state.hasPin
+        ? `Demo PIN: <code>${escapeHtml(state.pinCode)}</code> · Master Password: <code>${escapeHtml(state.masterPassword)}</code>`
+        : `No PIN configured yet — open <strong>Manage → Set Up PIN</strong> to test first-time setup.`;
+
+      return `
+        <aside class="proto-bar" aria-label="Prototype controls">
+          <div class="proto-top">
+            <span class="proto-title">PIN Lock Interactive Prototype ${statusLabel}</span>
+            <div class="proto-actions">
+              <button type="button" class="proto-btn" data-proto="reload">${ICONS.refresh}<span>Simulate Reload</span></button>
+              <button type="button" class="proto-btn" data-proto="bg-lock">${ICONS.clock}<span>Simulate Background &gt; 1m</span></button>
+              <button type="button" class="proto-btn" data-proto="toggle-has-pin">${state.hasPin ? "Reset to Fresh (No PIN)" : "Enable Demo PIN (1234)"}</button>
+            </div>
+          </div>
+          <div class="proto-creds">${credsHint}</div>
+        </aside>
+      `;
+    }
+
+    function renderTopBar(titleText, showBack = false, extraRightHtml = "") {
+      const isDark = state.theme === "dark";
+      const showLockBtn = state.hasPin && state.isUnlocked;
+      return `
+        <header class="android-topbar">
+          <div class="topbar-left">
+            ${showBack ? `<button type="button" id="btn-back-home" class="icon-btn" data-action="go-home" aria-label="Back to Home">${ICONS.arrowLeft}</button>` : ""}
+            <h1 class="topbar-title">${escapeHtml(titleText)}</h1>
+          </div>
+          <div class="topbar-actions">
+            ${showLockBtn ? `<button type="button" id="btn-manual-lock" class="icon-btn icon-btn-outlined" data-action="manual-lock" aria-label="Lock financial details" title="Lock financial details">${ICONS.lock}</button>` : ""}
+            ${extraRightHtml}
+            <button type="button" id="btn-toggle-theme" class="icon-btn" data-action="toggle-theme" aria-pressed="${isDark}" aria-label="${isDark ? "Switch to light theme" : "Switch to dark theme"}" title="${isDark ? "Light theme" : "Dark theme"}">
+              ${isDark ? ICONS.sun : ICONS.moon}
+            </button>
+          </div>
+        </header>
+      `;
+    }
+
+    function renderLockedCard({ title, copy, showBack = false, buttonId = "btn-unlock-trigger" }) {
+      return `
+        <section class="card lock-card" aria-label="Locked financial details">
+          <div class="lock-badge">${ICONS.lockLg}</div>
+          <h2 class="lock-card-title">${escapeHtml(title)}</h2>
+          <p class="lock-card-copy">${escapeHtml(copy)}</p>
+          <div class="lock-card-actions">
+            <button type="button" id="${escapeHtml(buttonId)}" class="btn btn-primary btn-block" data-action="open-unlock">
+              ${ICONS.lockOpen}
+              <span>Unlock with PIN</span>
+            </button>
+            ${showBack ? `<button type="button" class="btn btn-secondary btn-block" data-action="go-home">Back to Home</button>` : ""}
+          </div>
+        </section>
+      `;
+    }
+
+    function renderBanners() {
+      let html = "";
+      if (state.statusToast) {
+        const isErrorTone = state.statusToastTone === "error";
+        const bannerCls = isErrorTone ? "banner-error" : "banner-success";
+        const icon = isErrorTone ? ICONS.warning : ICONS.check;
+        const undoBtn = state.lastDeletedTx
+          ? `<button type="button" class="btn btn-danger-fill btn-sm" data-action="undo-delete">Undo</button>`
+          : "";
+        html += `<div class="banner ${bannerCls}" role="status"><div class="banner-copy">${icon}<span>${escapeHtml(state.statusToast)}</span></div><div class="banner-actions">${undoBtn}<button type="button" class="btn btn-secondary btn-sm" data-action="dismiss-toast">Close</button></div></div>`;
+      }
+      if (state.saveBanner) {
+        html += `<div class="banner banner-success" role="status"><div class="banner-copy">${ICONS.check}<span>${escapeHtml(state.saveBanner)}</span></div><div class="banner-actions"><button type="button" class="btn btn-primary btn-sm" data-action="go-record">+ Add another</button><button type="button" class="btn btn-secondary btn-sm" data-action="dismiss-save">Dismiss</button></div></div>`;
+      }
+      // Hide backup reminder while locked so entry counts / backup prompts aren't exposed
+      if (!isLocked() && state.view === "home" && state.backupDueDays >= 30 && !state.backupDismissed && getActiveAccounts().length > 0) {
+        html += `<div class="banner banner-warning" role="region" aria-label="Backup reminder"><div class="banner-copy">${ICONS.warning}<span>It has been ${state.backupDueDays} days since your last backup or spreadsheet export.</span></div><div class="banner-actions"><button type="button" class="btn btn-secondary btn-sm" data-action="go-manage">Back Up Now</button><button type="button" class="btn btn-ghost btn-sm" data-action="dismiss-backup">Later</button></div></div>`;
+      }
+      return html;
+    }
+
+    function txTitleAndBadge(tx) {
+      const cat = tx.categoryId ? getCategoryById(tx.categoryId) : null;
+      if (tx.type === "expense") return { title: cat ? cat.name : "Other", badge: null };
+      if (tx.type === "deposit") return { title: "Cash Deposit", badge: `<span class="pill pill-positive">Deposit</span>` };
+      return { title: tx.direction === "incoming" ? "Transfer In" : "Transfer Out", badge: `<span class="pill pill-neutral">${tx.direction === "incoming" ? "Incoming" : "Outgoing"}</span>` };
+    }
+
+    function renderTxRow(tx, opts = {}) {
+      const acc = getAccountById(tx.accountId);
+      const accLabel = acc ? `${acc.name}${acc.archived ? " (Archived)" : ""}` : "Unknown account";
+      const { title, badge } = txTitleAndBadge(tx);
+      const signedPaise = tx.direction === "incoming" ? tx.amountPaise : -tx.amountPaise;
+      const isPositive = tx.direction === "incoming";
+      const subParts = [];
+      if (!opts.hideAccount) subParts.push(accLabel);
+      if (tx.mode) subParts.push(tx.mode);
+      if (tx.note) subParts.push(tx.note);
+
+      return `
+        <button type="button" class="tx-row-btn" data-action="edit-tx" data-id="${escapeHtml(tx.id)}">
+          <span class="tx-left">
+            <span class="tx-primary"><span>${escapeHtml(title)}</span>${badge || ""}</span>
+            ${subParts.length ? `<span class="tx-meta">${escapeHtml(subParts.join(" · "))}</span>` : ""}
+          </span>
+          <span class="tx-right">
+            <span class="tx-amount num ${isPositive ? "tx-amount-positive" : ""}">${escapeHtml(formatRupees(signedPaise, { signed: true }))}</span>
+            <span class="tx-date num">${escapeHtml(formatDateShort(tx.date))}</span>
+          </span>
+        </button>
+      `;
+    }
+
+    function renderHome() {
+      const topBar = renderTopBar(
+        "Expenses",
+        false,
+        `<button type="button" id="btn-top-manage" class="btn btn-secondary btn-sm" data-action="go-manage">${ICONS.sliders}<span>Manage</span></button>`
+      );
+
+      if (isLocked()) {
+        return {
+          topBar,
+          body: `
+            ${renderBanners()}
+            ${renderLockedCard({
+              title: "Financial details are hidden",
+              copy: "Unlock with your PIN to view bank balances, monthly spending, and recent transactions.",
+              buttonId: "btn-home-unlock"
+            })}
+          `
+        };
+      }
+
+      const activeAccounts = getActiveAccounts();
+      const totalPaise = computeTotalActiveBalancePaise();
+      const spending = computeMonthlyCategorySpending(state.selectedMonth);
+      const recent10 = getSortedTransactions().slice(0, 10);
+      const monthTitle = formatMonthTitle(state.selectedMonth);
+
+      return {
+        topBar,
+        body: `
+          ${renderBanners()}
+          <section class="card card-flush" aria-label="Total and Bank Account Balances">
+            <div class="card-header card-header-padded">
+              <div>
+                <div class="balance-label">Total Balance</div>
+                <div class="balance-hero num">${escapeHtml(formatRupees(totalPaise))}</div>
+              </div>
+              <button type="button" class="btn btn-secondary btn-sm" data-action="go-manage">+ Add / Edit</button>
+            </div>
+            <div class="account-rows">
+              ${activeAccounts.map((acc) => `
+                <button type="button" class="account-row-btn" data-action="open-bank" data-id="${escapeHtml(acc.id)}" aria-label="View ${escapeHtml(acc.name)} transactions">
+                  <div>
+                    <div class="account-name">${escapeHtml(acc.name)}</div>
+                    <div class="account-sub">Available balance</div>
+                  </div>
+                  <span class="account-right">
+                    <span class="account-amount num">${escapeHtml(formatRupees(computeAccountBalancePaise(acc)))}</span>
+                    <span class="row-chevron">${ICONS.caretRight}</span>
+                  </span>
+                </button>
+              `).join("")}
+            </div>
+          </section>
+
+          <section class="card" aria-label="Where You Spent Most">
+            <div class="spend-header">
+              <div class="spend-header-row">
+                <h2 class="section-title">Where You Spent Most</h2>
+                <div class="month-switcher">
+                  <button type="button" class="icon-btn icon-btn-outlined" style="min-width:44px;min-height:44px;" data-action="prev-month" aria-label="Previous month">${ICONS.caretLeft}</button>
+                  <span class="month-label">${escapeHtml(monthTitle)}</span>
+                  <button type="button" class="icon-btn icon-btn-outlined" style="min-width:44px;min-height:44px;" data-action="next-month" aria-label="Next month">${ICONS.caretRight}</button>
+                </div>
+              </div>
+              <p class="sub-caption num">${spending.totalPaise > 0 ? `${escapeHtml(formatRupees(spending.totalPaise))} spent in ${escapeHtml(monthTitle)}` : `No expenses in ${escapeHtml(monthTitle)}`}</p>
+            </div>
+            ${spending.rows.length === 0 ? `<div class="empty-box">No expenses recorded in ${escapeHtml(monthTitle)}.</div>` : `
+              <div class="spend-list">
+                ${spending.rows.map((row, idx) => {
+                  const lead = spending.rows[0].amountPaise;
+                  const pct = lead > 0 ? Math.max(4, Math.round((row.amountPaise / lead) * 100)) : 4;
+                  return `
+                    <div style="display:flex;flex-direction:column;gap:6px;">
+                      <div class="spend-top">
+                        <span class="spend-cat"><span>${escapeHtml(row.name)}</span><span class="spend-pct num">${row.sharePct}%</span></span>
+                        <span class="spend-val num">${escapeHtml(formatRupees(row.amountPaise))}</span>
+                      </div>
+                      <div class="spend-track" aria-hidden="true"><div class="spend-fill ${idx === 0 ? "spend-fill-lead" : ""}" style="width:${pct}%"></div></div>
+                    </div>
+                  `;
+                }).join("")}
+              </div>
+            `}
+          </section>
+
+          <section class="card card-flush" aria-label="Last 10 Transactions">
+            <div class="card-header card-header-padded">
+              <div>
+                <h2 class="section-title">Last 10 Transactions</h2>
+                <p class="sub-caption">Tap any entry to edit or delete</p>
+              </div>
+              <button type="button" class="btn btn-secondary btn-sm" data-action="go-all">Show All →</button>
+            </div>
+            <div class="tx-list">
+              ${recent10.map((tx) => renderTxRow(tx)).join("")}
+            </div>
+          </section>
+        `
+      };
+    }
+
+    function renderRecord() {
+      const f = state.recordForm;
+      const activeAccounts = getActiveAccounts();
+      const visibleCategories = state.categories.filter((c) => !c.hidden);
+      const locked = isLocked();
+      const topBar = renderTopBar("Record Entry");
+
+      const microcopy = {
+        expense: "Use Expense for groceries, bills, pharmacy, and shop payments via Google Pay / UPI.",
+        deposit: "Use Deposit when adding cash or cheque into this bank account.",
+        transfer: "Use Transfer when sending money to someone or receiving money from someone."
+      };
+
+      const modes = f.type === "transfer" ? state.transferPaymentModes : f.type === "deposit" ? state.depositModes : state.expensePaymentModes;
+      const currentMode = f.type === "transfer" ? f.transferMode : f.type === "deposit" ? f.depositMode : f.expenseMode;
+      const saveLabel = f.type === "expense" ? "Save Expense" : f.type === "deposit" ? "Save Deposit" : "Save Transfer";
+
+      return {
+        topBar,
+        body: `
+          ${renderBanners()}
+          <form id="record-form" class="card form-stack" novalidate>
+            <div>
+              <span class="field-label">What kind of entry?</span>
+              <div class="segmented-3" role="group" aria-label="Transaction Type">
+                <button type="button" class="seg-btn" data-rec-type="expense" aria-pressed="${f.type === "expense"}">Expense</button>
+                <button type="button" class="seg-btn" data-rec-type="deposit" aria-pressed="${f.type === "deposit"}">Deposit</button>
+                <button type="button" class="seg-btn" data-rec-type="transfer" aria-pressed="${f.type === "transfer"}">Transfer</button>
+              </div>
+              <p class="field-hint">${escapeHtml(microcopy[f.type])}</p>
+            </div>
+
+            ${f.type === "transfer" ? `
+              <div>
+                <span class="field-label">Transfer Direction</span>
+                <div class="segmented-2" role="group" aria-label="Transfer Direction">
+                  <button type="button" class="chip-btn" data-rec-dir="outgoing" aria-pressed="${f.direction === "outgoing"}">Outgoing (−)</button>
+                  <button type="button" class="chip-btn" data-rec-dir="incoming" aria-pressed="${f.direction === "incoming"}">Incoming (+)</button>
+                </div>
+              </div>
+            ` : ""}
+
+            <div>
+              <label class="field-label" for="rec-amount-input">Amount (Rupees)</label>
+              <div class="amount-box">
+                <span class="amount-currency" aria-hidden="true">₹</span>
+                <input id="rec-amount-input" class="amount-input num" type="text" inputmode="decimal" placeholder="0" value="${escapeHtml(f.amount)}" autocomplete="off" />
+              </div>
+              ${f.error ? `<p class="field-error" role="alert">${escapeHtml(f.error)}</p>` : ""}
+            </div>
+
+            <div>
+              <span class="field-label">Bank Account ${locked ? `<span class="sub-caption" style="display:inline;font-weight:500;">(balances hidden while locked)</span>` : ""}</span>
+              <div class="chip-wrap" role="group" aria-label="Bank Account">
+                ${activeAccounts.map((acc) => `
+                  <button type="button" class="chip-btn" data-rec-acc="${escapeHtml(acc.id)}" aria-pressed="${f.accountId === acc.id}">
+                    <span>${escapeHtml(acc.name)}</span>
+                    ${locked ? "" : `<span class="num" style="opacity:0.85;font-size:13px;">(${escapeHtml(formatRupees(computeAccountBalancePaise(acc)))})</span>`}
+                  </button>
+                `).join("")}
+              </div>
+            </div>
+
+            ${f.type === "expense" ? `
+              <div>
+                <span class="field-label">Category</span>
+                <div class="chip-wrap" role="group" aria-label="Expense Category">
+                  ${visibleCategories.map((cat) => `
+                    <button type="button" class="chip-btn" data-rec-cat="${escapeHtml(cat.id)}" aria-pressed="${f.categoryId === cat.id}">${escapeHtml(cat.name)}</button>
+                  `).join("")}
+                </div>
+              </div>
+            ` : ""}
+
+            <div>
+              <span class="field-label">${f.type === "deposit" ? "Mode of Deposit" : "Payment Mode"}</span>
+              <div class="chip-wrap" role="group" aria-label="Payment Mode">
+                ${modes.map((m) => `
+                  <button type="button" class="chip-btn" data-rec-mode="${escapeHtml(m)}" aria-pressed="${currentMode === m}">${escapeHtml(m)}</button>
+                `).join("")}
+              </div>
+            </div>
+
+            <div class="filter-grid">
+              <div>
+                <label class="field-label" for="rec-date-input">Date</label>
+                <input id="rec-date-input" class="text-input num" type="date" value="${escapeHtml(f.date)}" />
+              </div>
+              <div>
+                <label class="field-label" for="rec-note-input">Note (optional)</label>
+                <input id="rec-note-input" class="text-input" type="text" placeholder="e.g. Milk & veggies" value="${escapeHtml(f.note)}" />
+              </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-block">${escapeHtml(saveLabel)}</button>
+          </form>
+        `
+      };
+    }
+
+    function renderBankHistory() {
+      const acc = getAccountById(state.selectedBankId);
+      if (!acc) return renderHome();
+      if (isLocked()) {
+        return {
+          topBar: renderTopBar(acc.name, true),
+          body: `${renderBanners()}${renderLockedCard({ title: `${acc.name} history is locked`, copy: "Unlock with your PIN to view this account's balance, ledger, and CSV export.", showBack: true, buttonId: "btn-bank-unlock" })}`
+        };
+      }
+      const bankTxs = getSortedTransactions().filter((t) => t.accountId === acc.id);
+      const bal = computeAccountBalancePaise(acc);
+      return {
+        topBar: renderTopBar(acc.name, true, `<button type="button" class="btn btn-primary btn-sm" data-action="export-toast">${ICONS.share}<span>Export (${bankTxs.length})</span></button>`),
+        body: `
+          ${renderBanners()}
+          <section class="card" aria-label="${escapeHtml(acc.name)} Summary">
+            <div class="row-between" style="align-items:flex-start;">
+              <div>
+                <div class="balance-label">Current Balance</div>
+                <div class="balance-hero num">${escapeHtml(formatRupees(bal))}</div>
+                <p class="sub-caption num" style="margin-top:6px;">${bankTxs.length} transactions recorded</p>
+              </div>
+              <button type="button" class="btn btn-secondary btn-sm" data-action="go-record">+ Record</button>
+            </div>
+          </section>
+          <section class="card card-flush" aria-label="${escapeHtml(acc.name)} Transactions">
+            <div class="card-header card-header-padded">
+              <div><h2 class="section-title">Account History</h2><p class="sub-caption">Tap any entry to edit or delete</p></div>
+            </div>
+            <div class="tx-list">${bankTxs.map((tx) => renderTxRow(tx, { hideAccount: true })).join("")}</div>
+          </section>
+        `
+      };
+    }
+
+    function renderAllTransactions() {
+      if (isLocked()) {
+        return {
+          topBar: renderTopBar("All Transactions", true),
+          body: `${renderBanners()}${renderLockedCard({ title: "Transaction history is locked", copy: "Unlock with your PIN to view, filter, edit, or export your transactions.", showBack: true, buttonId: "btn-all-unlock" })}`
+        };
+      }
+      const filtered = getFilteredTransactions();
+      return {
+        topBar: renderTopBar("All Transactions", true, `<button type="button" class="btn btn-primary btn-sm" data-action="export-toast">${ICONS.share}<span>Export (${filtered.length})</span></button>`),
+        body: `
+          ${renderBanners()}
+          <section class="card">
+            <div class="row-between" style="margin-bottom:10px;">
+              <span class="sub-caption num" style="margin:0;">Showing ${filtered.length} of ${state.transactions.length} entries</span>
+            </div>
+            <div class="filter-grid">
+              <div>
+                <label class="field-label" for="flt-type">Type</label>
+                <select id="flt-type" class="select-input">
+                  <option value="all" ${state.filters.typeKey === "all" ? "selected" : ""}>All Types</option>
+                  <option value="expense" ${state.filters.typeKey === "expense" ? "selected" : ""}>Expense</option>
+                  <option value="deposit" ${state.filters.typeKey === "deposit" ? "selected" : ""}>Deposit</option>
+                  <option value="transfer-outgoing" ${state.filters.typeKey === "transfer-outgoing" ? "selected" : ""}>Transfer - Outgoing</option>
+                  <option value="transfer-incoming" ${state.filters.typeKey === "transfer-incoming" ? "selected" : ""}>Transfer - Incoming</option>
+                </select>
+              </div>
+              <div>
+                <label class="field-label" for="flt-cat">Category</label>
+                <select id="flt-cat" class="select-input">
+                  <option value="all" ${state.filters.categoryId === "all" ? "selected" : ""}>All Categories</option>
+                  ${state.categories.map((c) => `<option value="${escapeHtml(c.id)}" ${state.filters.categoryId === c.id ? "selected" : ""}>${escapeHtml(c.name)}</option>`).join("")}
+                </select>
+              </div>
+            </div>
+          </section>
+          <section class="card card-flush">
+            <div class="tx-list">${filtered.map((tx) => renderTxRow(tx)).join("")}</div>
+          </section>
+        `
+      };
+    }
+
+    function renderManage() {
+      const isDark = state.theme === "dark";
+      const locked = isLocked();
+      const topBar = renderTopBar("Manage & Settings", true);
+
+      const pinLockCard = state.hasPin
+        ? `
+          <section class="card form-stack" aria-label="PIN Lock">
+            <div class="row-between">
+              <div>
+                <div class="row-gap-8">
+                  <h2 class="section-title">PIN Lock</h2>
+                  <span class="pill pill-positive">Enabled</span>
+                </div>
+                <p class="sub-caption">Hides balances, spending, history, and exports until unlocked.</p>
+              </div>
+              <span style="color:var(--color-secondary-ink);" aria-hidden="true">${ICONS.shield}</span>
+            </div>
+            <div class="filter-grid">
+              <button type="button" id="btn-change-pin" class="btn btn-secondary btn-sm" data-action="open-change-pin">Change PIN</button>
+              <button type="button" id="btn-disable-pin" class="btn btn-danger-outline btn-sm" data-action="open-disable-pin">Turn Off PIN</button>
+            </div>
+          </section>
+        `
+        : `
+          <section class="card form-stack" aria-label="PIN Lock">
+            <div class="row-between">
+              <div>
+                <div class="row-gap-8">
+                  <h2 class="section-title">PIN Lock</h2>
+                  <span class="pill pill-neutral">Off</span>
+                </div>
+                <p class="sub-caption">Protect balances, spending, and transaction history with a 4–6 digit PIN.</p>
+              </div>
+              <span style="color:var(--color-muted-foreground);" aria-hidden="true">${ICONS.shield}</span>
+            </div>
+            <button type="button" id="btn-setup-pin" class="btn btn-primary" data-action="open-setup-pin">
+              ${ICONS.lock}
+              <span>Set Up PIN</span>
+            </button>
+          </section>
+        `;
+
+      const protectedManageBody = locked
+        ? renderLockedCard({
+            title: "Accounts & exports are hidden",
+            copy: "Unlock with your PIN to manage bank accounts, categories, CSV exports, and backups.",
+            buttonId: "btn-manage-unlock"
+          })
+        : `
+          <section class="card form-stack" aria-label="Bank Accounts">
+            <div>
+              <h2 class="section-title">Bank Accounts</h2>
+              <p class="sub-caption">Manage balances, rename accounts, or archive old ones.</p>
+            </div>
+            <div>
+              ${state.accounts.map((acc) => `
+                <div class="manage-item">
+                  <div class="row-between">
+                    <div>
+                      <div class="row-gap-8">
+                        <span class="account-name">${escapeHtml(acc.name)}</span>
+                        ${acc.archived ? `<span class="pill pill-neutral">Archived</span>` : `<span class="pill pill-positive">Active</span>`}
+                      </div>
+                      <div class="account-sub num">Balance: ${escapeHtml(formatRupees(computeAccountBalancePaise(acc)))}</div>
+                    </div>
+                  </div>
+                </div>
+              `).join("")}
+            </div>
+          </section>
+
+          <section class="card form-stack" aria-label="Expense Categories">
+            <div>
+              <h2 class="section-title">Expense Categories</h2>
+              <p class="sub-caption">Customize categories used when recording expenses.</p>
+            </div>
+            <div class="chip-wrap">
+              ${state.categories.map((c) => `<span class="pill pill-neutral">${escapeHtml(c.name)}</span>`).join("")}
+            </div>
+          </section>
+
+          <section class="card form-stack" aria-label="Spreadsheet Export">
+            <div>
+              <h2 class="section-title">Spreadsheet Export (.csv)</h2>
+              <p class="sub-caption num">${state.transactions.length} transactions · ${state.accounts.length} accounts</p>
+            </div>
+            <button type="button" class="btn btn-primary" data-action="export-toast">${ICONS.share}<span>Export All (.csv)</span></button>
+          </section>
+
+          <section class="card form-stack" aria-label="Backup and Restore">
+            <div>
+              <h2 class="section-title">Backup &amp; Restore (.json)</h2>
+              <p class="sub-caption">Save a complete backup file on this phone or restore from a saved JSON file.</p>
+            </div>
+            <div class="filter-grid">
+              <button type="button" class="btn btn-secondary btn-sm" data-action="backup-toast">Download Backup</button>
+              <button type="button" class="btn btn-secondary btn-sm" data-action="restore-toast">Restore Backup</button>
+            </div>
+          </section>
+        `;
+
+      return {
+        topBar,
+        body: `
+          ${renderBanners()}
+          <section class="card" aria-label="Appearance">
+            <div class="row-between">
+              <div>
+                <h2 class="section-title">Appearance</h2>
+                <p class="sub-caption">Switch between Light and Dark theme</p>
+              </div>
+              <button type="button" class="btn btn-secondary btn-sm" data-action="toggle-theme" aria-pressed="${isDark}">
+                ${isDark ? ICONS.sun : ICONS.moon}
+                <span>${isDark ? "Dark On" : "Light On"}</span>
+              </button>
+            </div>
+          </section>
+
+          ${pinLockCard}
+          ${protectedManageBody}
+          <p class="app-version num">Version 1.0.0</p>
+        `
+      };
+    }
+
+    function renderPasswordField({ id, label, value, shown, toggleKey, placeholder = "", hint = "", autoComplete = "off", inputMode = null, isPin = false, disabled = false }) {
+      const type = isPin ? "password" : (shown ? "text" : "password");
+      const extraAttrs = isPin ? `inputmode="numeric" pattern="[0-9]*" maxlength="6"` : "";
+      const pinCls = isPin ? "pin-input" : "";
+      return `
+        <div>
+          <label class="field-label" for="${escapeHtml(id)}">${escapeHtml(label)}</label>
+          ${isPin
+            ? `<input id="${escapeHtml(id)}" class="text-input num ${pinCls}" type="${type}" ${extraAttrs} autocomplete="${escapeHtml(autoComplete)}" placeholder="${escapeHtml(placeholder)}" value="${escapeHtml(value)}" ${disabled ? "disabled" : ""} />`
+            : `
+              <div class="input-with-toggle">
+                <input id="${escapeHtml(id)}" class="text-input" type="${type}" autocomplete="${escapeHtml(autoComplete)}" placeholder="${escapeHtml(placeholder)}" value="${escapeHtml(value)}" ${disabled ? "disabled" : ""} />
+                <button type="button" class="input-eye-btn" data-toggle-vis="${escapeHtml(toggleKey)}" aria-pressed="${Boolean(shown)}" aria-label="${shown ? `Hide ${label}` : `Show ${label}`}">
+                  ${shown ? ICONS.eyeSlash : ICONS.eye}
+                </button>
+              </div>
+            `
+          }
+          ${hint ? `<p class="field-hint">${escapeHtml(hint)}</p>` : ""}
+        </div>
+      `;
+    }
+
+    function renderPinModal() {
+      const m = state.pinModal;
+      if (!m) return "";
+      const cooldownSec = getCooldownRemainingSec();
+      const inCooldown = cooldownSec > 0;
+
+      let title = "";
+      let content = "";
+
+      if (m.mode === "unlock") {
+        title = "Unlock Financial Details";
+        content = `
+          <form id="pin-modal-form" class="form-stack" novalidate>
+            <p class="sub-caption" style="margin:0;font-size:14px;">Enter your 4–6 digit PIN to view balances, spending, and transactions.</p>
+            ${renderPasswordField({
+              id: "modal-pin-1",
+              label: "PIN",
+              value: m.pin1,
+              isPin: true,
+              placeholder: "••••",
+              disabled: inCooldown
+            })}
+            ${inCooldown ? `<p class="field-error num" role="alert" style="margin:0;">Too many incorrect attempts. Try again in ${cooldownSec}s.</p>` : (m.error ? `<p class="field-error" role="alert" style="margin:0;">${escapeHtml(m.error)}</p>` : "")}
+            <div class="row-between">
+              <button type="button" class="btn btn-secondary" data-action="close-modal">Cancel</button>
+              <button type="submit" class="btn btn-primary" ${inCooldown ? "disabled" : ""}>Unlock</button>
+            </div>
+            <div style="text-align:center;border-top:1px solid var(--color-rule);padding-top:8px;">
+              <button type="button" class="link-btn" data-action="go-forgot-master">Forgot PIN?</button>
+            </div>
+          </form>
+        `;
+      } else if (m.mode === "forgot-master") {
+        title = "Verify Master Password";
+        content = `
+          <form id="pin-modal-form" class="form-stack" novalidate>
+            <p class="sub-caption" style="margin:0;font-size:14px;">Enter your Master Password to unlock and set a new PIN.</p>
+            ${renderPasswordField({
+              id: "modal-master-1",
+              label: "Master Password",
+              value: m.masterInput,
+              shown: m.showMaster,
+              toggleKey: "showMaster",
+              autoComplete: "current-password",
+              placeholder: "At least 8 characters"
+            })}
+            ${m.error ? `<p class="field-error" role="alert" style="margin:0;">${escapeHtml(m.error)}</p>` : ""}
+            <div class="row-between">
+              <button type="button" class="btn btn-secondary" data-action="back-to-unlock">Back</button>
+              <button type="submit" class="btn btn-primary">Verify</button>
+            </div>
+          </form>
+        `;
+      } else if (m.mode === "reset-pin") {
+        title = "Set New PIN";
+        content = `
+          <form id="pin-modal-form" class="form-stack" novalidate>
+            <p class="sub-caption" style="margin:0;font-size:14px;">Master Password verified. Choose a new 4–6 digit PIN.</p>
+            ${renderPasswordField({ id: "modal-pin-1", label: "New PIN (4–6 digits)", value: m.pin1, isPin: true, placeholder: "••••" })}
+            ${renderPasswordField({ id: "modal-pin-2", label: "Confirm New PIN", value: m.pin2, isPin: true, placeholder: "••••" })}
+            ${m.error ? `<p class="field-error" role="alert" style="margin:0;">${escapeHtml(m.error)}</p>` : ""}
+            <div class="row-between">
+              <button type="button" class="btn btn-secondary" data-action="close-modal">Cancel</button>
+              <button type="submit" class="btn btn-primary">Save New PIN</button>
+            </div>
+          </form>
+        `;
+      } else if (m.mode === "setup") {
+        title = "Set Up PIN Lock";
+        content = `
+          <form id="pin-modal-form" class="form-stack" novalidate>
+            <p class="sub-caption" style="margin:0;font-size:14px;">Create a 4–6 digit PIN and a Master Password in case you ever forget the PIN.</p>
+            ${renderPasswordField({ id: "modal-pin-1", label: "New PIN (4–6 digits)", value: m.pin1, isPin: true, placeholder: "••••" })}
+            ${renderPasswordField({ id: "modal-pin-2", label: "Confirm PIN", value: m.pin2, isPin: true, placeholder: "••••" })}
+            <div style="border-top:1px solid var(--color-rule);padding-top:12px;" class="form-stack">
+              ${renderPasswordField({
+                id: "modal-master-1",
+                label: "Master Password (8+ characters)",
+                value: m.masterInput,
+                shown: m.showMaster,
+                toggleKey: "showMaster",
+                autoComplete: "new-password",
+                placeholder: "Any 8+ characters",
+                hint: "Used only if you tap Forgot PIN."
+              })}
+              ${renderPasswordField({
+                id: "modal-master-2",
+                label: "Confirm Master Password",
+                value: m.masterConfirm,
+                shown: m.showMasterConfirm,
+                toggleKey: "showMasterConfirm",
+                autoComplete: "new-password",
+                placeholder: "Re-enter Master Password"
+              })}
+            </div>
+            ${m.error ? `<p class="field-error" role="alert" style="margin:0;">${escapeHtml(m.error)}</p>` : ""}
+            <div class="row-between">
+              <button type="button" class="btn btn-secondary" data-action="close-modal">Cancel</button>
+              <button type="submit" class="btn btn-primary">Enable PIN Lock</button>
+            </div>
+          </form>
+        `;
+      } else if (m.mode === "change") {
+        title = "Change PIN";
+        content = `
+          <form id="pin-modal-form" class="form-stack" novalidate>
+            ${renderPasswordField({ id: "modal-cur-pin", label: "Current PIN", value: m.currentPin, isPin: true, placeholder: "••••", disabled: inCooldown })}
+            ${renderPasswordField({ id: "modal-pin-1", label: "New PIN (4–6 digits)", value: m.pin1, isPin: true, placeholder: "••••", disabled: inCooldown })}
+            ${renderPasswordField({ id: "modal-pin-2", label: "Confirm New PIN", value: m.pin2, isPin: true, placeholder: "••••", disabled: inCooldown })}
+            ${inCooldown ? `<p class="field-error num" role="alert" style="margin:0;">Too many incorrect attempts. Try again in ${cooldownSec}s.</p>` : (m.error ? `<p class="field-error" role="alert" style="margin:0;">${escapeHtml(m.error)}</p>` : "")}
+            <div class="row-between">
+              <button type="button" class="btn btn-secondary" data-action="close-modal">Cancel</button>
+              <button type="submit" class="btn btn-primary" ${inCooldown ? "disabled" : ""}>Update PIN</button>
+            </div>
+            <div style="text-align:center;border-top:1px solid var(--color-rule);padding-top:8px;">
+              <button type="button" class="link-btn" data-action="go-forgot-master">Forgot PIN?</button>
+            </div>
+          </form>
+        `;
+      } else if (m.mode === "disable") {
+        title = "Turn Off PIN Lock";
+        content = `
+          <form id="pin-modal-form" class="form-stack" novalidate>
+            <p class="sub-caption" style="margin:0;font-size:14px;">Enter your current PIN to turn off PIN Lock. This clears your PIN and Master Password.</p>
+            ${renderPasswordField({ id: "modal-cur-pin", label: "Current PIN", value: m.currentPin, isPin: true, placeholder: "••••", disabled: inCooldown })}
+            ${inCooldown ? `<p class="field-error num" role="alert" style="margin:0;">Too many incorrect attempts. Try again in ${cooldownSec}s.</p>` : (m.error ? `<p class="field-error" role="alert" style="margin:0;">${escapeHtml(m.error)}</p>` : "")}
+            <div class="row-between">
+              <button type="button" class="btn btn-secondary" data-action="close-modal">Cancel</button>
+              <button type="submit" class="btn btn-danger-fill" ${inCooldown ? "disabled" : ""}>Turn Off PIN</button>
+            </div>
+          </form>
+        `;
+      }
+
+      return `
+        <div class="overlay-backdrop" role="dialog" aria-modal="true" aria-label="${escapeHtml(title)}">
+          <div class="dialog-panel">
+            <h2 class="section-title" style="margin:0 0 14px;">${escapeHtml(title)}</h2>
+            ${content}
+          </div>
+        </div>
+      `;
+    }
+
+    function renderEditDialog() {
+      if (!state.editingTxId) return "";
+      const tx = state.transactions.find((t) => t.id === state.editingTxId);
+      if (!tx) return "";
+      const acc = getAccountById(tx.accountId);
+      return `
+        <div class="overlay-backdrop" role="dialog" aria-modal="true" aria-label="Edit Entry">
+          <div class="dialog-panel form-stack">
+            <h2 class="section-title" style="margin:0;">Entry Details</h2>
+            <p class="sub-caption" style="margin:0;">${escapeHtml(acc ? acc.name : "Account")} · ${escapeHtml(formatRupees(tx.amountPaise))} · ${escapeHtml(tx.note || tx.mode)}</p>
+            <p class="field-hint" style="margin:0;">Try <strong>Delete Entry</strong> (4s toast) or <strong>Simulate Background &gt; 1m</strong> above while open.</p>
+            <div class="row-between">
+              <button type="button" class="btn btn-secondary" data-action="close-edit">Close</button>
+              <button type="button" class="btn btn-danger-outline" data-action="delete-edit-tx">Delete Entry</button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderBottomNav() {
+      const isHomeTab = state.view === "home" || state.view === "bank-tx";
+      const isRecordTab = state.view === "record";
+      return `
+        <nav class="android-bottom-nav" aria-label="Bottom tabs">
+          <button type="button" class="android-nav-btn" data-action="nav-home" aria-current="${isHomeTab ? "page" : "false"}">
+            <span class="nav-icon-pill">${ICONS.house}</span>
+            <span>Home</span>
+          </button>
+          <button type="button" class="android-nav-btn" data-action="nav-record" aria-current="${isRecordTab ? "page" : "false"}">
+            <span class="nav-icon-pill">${ICONS.plusCircle}</span>
+            <span>Record</span>
+          </button>
+        </nav>
+      `;
+    }
+
+    function renderApp() {
+      document.documentElement.setAttribute("data-theme", state.theme);
+      let viewOut;
+      if (state.view === "record") viewOut = renderRecord();
+      else if (state.view === "bank-tx") viewOut = renderBankHistory();
+      else if (state.view === "all") viewOut = renderAllTransactions();
+      else if (state.view === "manage") viewOut = renderManage();
+      else viewOut = renderHome();
+
+      const appEl = document.getElementById("app");
+      appEl.innerHTML = `
+        <div class="proto-shell">
+          ${renderProtoBar()}
+          <div class="phone-frame">
+            ${viewOut.topBar}
+            <div class="phone-scroll">${viewOut.body}</div>
+            ${renderBottomNav()}
+            ${renderPinModal()}
+            ${renderEditDialog()}
+          </div>
+        </div>
+      `;
+    }
+
+    function registerFailure(msg) {
+      state.failedAttempts += 1;
+      if (state.failedAttempts >= 5) {
+        state.cooldownUntil = Date.now() + 30000;
+        ensureCooldownTick();
+        state.pinModal.error = "";
+      } else {
+        state.pinModal.error = `${msg} (${state.failedAttempts}/5)`;
+      }
+      state.pinModal.pin1 = "";
+      state.pinModal.currentPin = "";
+      renderApp();
+      focusModalFirstInput();
+    }
+
+    function handleModalSubmit() {
+      const m = state.pinModal;
+      if (!m) return;
+      const isPinDigits = (v) => /^\d{4,6}$/.test(v);
+
+      if (m.mode === "unlock") {
+        if (getCooldownRemainingSec() > 0) return;
+        if (m.pin1 === state.pinCode) {
+          state.failedAttempts = 0;
+          state.cooldownUntil = 0;
+          state.isUnlocked = true;
+          closePinModal();
+          renderApp();
+        } else {
+          registerFailure("Incorrect PIN. Please try again.");
+        }
+        return;
+      }
+
+      if (m.mode === "forgot-master") {
+        if (m.masterInput === state.masterPassword) {
+          state.failedAttempts = 0;
+          state.cooldownUntil = 0;
+          state.isUnlocked = true;
+          openPinModal("reset-pin");
+        } else {
+          m.error = "Incorrect Master Password.";
+          m.masterInput = "";
+          renderApp();
+          focusModalFirstInput();
+        }
+        return;
+      }
+
+      if (m.mode === "reset-pin") {
+        if (!isPinDigits(m.pin1)) {
+          m.error = "PIN must be 4 to 6 digits.";
+          renderApp();
+          return;
+        }
+        if (m.pin1 !== m.pin2) {
+          m.error = "PINs do not match.";
+          m.pin2 = "";
+          renderApp();
+          return;
+        }
+        state.pinCode = m.pin1;
+        state.hasPin = true;
+        state.isUnlocked = true;
+        closePinModal();
+        setToast("New PIN saved and session unlocked.");
+        renderApp();
+        return;
+      }
+
+      if (m.mode === "setup") {
+        if (!isPinDigits(m.pin1)) {
+          m.error = "PIN must be 4 to 6 digits.";
+          renderApp();
+          return;
+        }
+        if (m.pin1 !== m.pin2) {
+          m.error = "PINs do not match.";
+          m.pin2 = "";
+          renderApp();
+          return;
+        }
+        if ((m.masterInput || "").length < 8) {
+          m.error = "Master Password must be at least 8 characters.";
+          renderApp();
+          return;
+        }
+        if (m.masterInput !== m.masterConfirm) {
+          m.error = "Master Passwords do not match.";
+          m.masterConfirm = "";
+          renderApp();
+          return;
+        }
+        state.pinCode = m.pin1;
+        state.masterPassword = m.masterInput;
+        state.hasPin = true;
+        state.isUnlocked = true;
+        state.failedAttempts = 0;
+        state.cooldownUntil = 0;
+        closePinModal();
+        setToast("PIN Lock enabled.");
+        renderApp();
+        return;
+      }
+
+      if (m.mode === "change") {
+        if (getCooldownRemainingSec() > 0) return;
+        if (m.currentPin !== state.pinCode) {
+          registerFailure("Current PIN is incorrect.");
+          return;
+        }
+        if (!isPinDigits(m.pin1)) {
+          m.error = "New PIN must be 4 to 6 digits.";
+          renderApp();
+          return;
+        }
+        if (m.pin1 !== m.pin2) {
+          m.error = "New PINs do not match.";
+          m.pin2 = "";
+          renderApp();
+          return;
+        }
+        state.pinCode = m.pin1;
+        state.failedAttempts = 0;
+        state.cooldownUntil = 0;
+        state.isUnlocked = true;
+        closePinModal();
+        setToast("PIN updated.");
+        renderApp();
+        return;
+      }
+
+      if (m.mode === "disable") {
+        if (getCooldownRemainingSec() > 0) return;
+        if (m.currentPin !== state.pinCode) {
+          registerFailure("Incorrect PIN.");
+          return;
+        }
+        state.hasPin = false;
+        state.pinCode = "";
+        state.masterPassword = "";
+        state.isUnlocked = false;
+        state.failedAttempts = 0;
+        state.cooldownUntil = 0;
+        closePinModal();
+        setToast("PIN Lock turned off.");
+        renderApp();
+      }
+    }
+
+    // Event delegation
+    document.addEventListener("click", (e) => {
+      const protoBtn = e.target.closest("[data-proto]");
+      if (protoBtn) {
+        const p = protoBtn.dataset.proto;
+        if (p === "reload") {
+          state.isUnlocked = false;
+          state.editingTxId = null;
+          state.pinModal = null;
+          state.view = "home";
+          state.selectedBankId = null;
+          setToast(state.hasPin ? "Simulated app reload (session starts locked)." : "Simulated app reload (no PIN set).");
+          renderApp();
+        } else if (p === "bg-lock") {
+          if (state.hasPin && state.isUnlocked) {
+            lockApp("Auto-locked after > 1 minute in background.");
+          } else {
+            setToast(state.hasPin ? "Already locked." : "Enable a PIN first to test background lock.");
+            renderApp();
+          }
+        } else if (p === "toggle-has-pin") {
+          if (state.hasPin) {
+            state.hasPin = false;
+            state.pinCode = "";
+            state.masterPassword = "";
+            state.isUnlocked = false;
+            setToast("Reset to fresh state (PIN Lock Off).");
+          } else {
+            state.hasPin = true;
+            state.pinCode = "1234";
+            state.masterPassword = "momsecret123";
+            state.isUnlocked = false;
+            setToast("Demo PIN (1234) enabled & locked.");
+          }
+          state.failedAttempts = 0;
+          state.cooldownUntil = 0;
+          state.pinModal = null;
+          renderApp();
+        }
+        return;
+      }
+
+      const backdrop = e.target.closest(".overlay-backdrop");
+      if (backdrop && e.target === backdrop) {
+        if (state.pinModal) closePinModal();
+        else if (state.editingTxId) { state.editingTxId = null; renderApp(); }
+        return;
+      }
+
+      const toggleVis = e.target.closest("[data-toggle-vis]");
+      if (toggleVis && state.pinModal) {
+        const key = toggleVis.dataset.toggleVis;
+        state.pinModal[key] = !state.pinModal[key];
+        renderApp();
+        const targetId = key === "showMaster" ? "modal-master-1" : "modal-master-2";
+        document.getElementById(targetId)?.focus();
+        return;
+      }
+
+      const actEl = e.target.closest("[data-action]");
+      if (actEl) {
+        const action = actEl.dataset.action;
+        if (action === "toggle-theme") { state.theme = state.theme === "light" ? "dark" : "light"; renderApp(); }
+        else if (action === "go-home" || action === "nav-home") { state.view = "home"; state.selectedBankId = null; renderApp(); }
+        else if (action === "nav-record" || action === "go-record") { state.view = "record"; renderApp(); }
+        else if (action === "go-manage") { state.view = "manage"; renderApp(); }
+        else if (action === "go-all") { state.view = "all"; renderApp(); }
+        else if (action === "open-bank") { state.selectedBankId = actEl.dataset.id; state.view = "bank-tx"; renderApp(); }
+        else if (action === "manual-lock") { lockApp("Financial details locked."); }
+        else if (action === "open-unlock") { captureOpenerFocus(); openPinModal("unlock"); }
+        else if (action === "open-setup-pin") { captureOpenerFocus(); openPinModal("setup"); }
+        else if (action === "open-change-pin") { captureOpenerFocus(); openPinModal("change"); }
+        else if (action === "open-disable-pin") { captureOpenerFocus(); openPinModal("disable"); }
+        else if (action === "go-forgot-master") { openPinModal("forgot-master"); }
+        else if (action === "back-to-unlock") { openPinModal("unlock"); }
+        else if (action === "close-modal") { closePinModal(); }
+        else if (action === "edit-tx") { state.editingTxId = actEl.dataset.id; renderApp(); }
+        else if (action === "close-edit") { state.editingTxId = null; renderApp(); }
+        else if (action === "delete-edit-tx") {
+          const deletedTx = state.transactions.find((t) => t.id === state.editingTxId) || null;
+          state.transactions = state.transactions.filter((t) => t.id !== state.editingTxId);
+          state.editingTxId = null;
+          setToast("Transaction deleted and balances updated.", 4000, { undoTx: deletedTx, tone: "error" });
+          renderApp();
+        }
+        else if (action === "undo-delete") {
+          if (state.lastDeletedTx) {
+            state.transactions.unshift(state.lastDeletedTx);
+            setToast("Transaction restored and balances updated.", 2000);
+          } else {
+            state.statusToast = null;
+          }
+          renderApp();
+        }
+        else if (action === "dismiss-toast") { state.statusToast = null; state.lastDeletedTx = null; renderApp(); }
+        else if (action === "dismiss-save") { state.saveBanner = null; renderApp(); }
+        else if (action === "dismiss-backup") { state.backupDismissed = true; renderApp(); }
+        else if (action === "prev-month") { state.selectedMonth = shiftMonth(state.selectedMonth, -1); renderApp(); }
+        else if (action === "next-month") { state.selectedMonth = shiftMonth(state.selectedMonth, 1); renderApp(); }
+        else if (action === "export-toast") { setToast("CSV export triggered (demo)."); renderApp(); }
+        else if (action === "backup-toast") { setToast("JSON backup downloaded (demo; PIN excluded)."); renderApp(); }
+        else if (action === "restore-toast") { setToast("Backup restored (demo; PIN preserved)."); renderApp(); }
+        return;
+      }
+
+      const typeBtn = e.target.closest("[data-rec-type]");
+      if (typeBtn) { state.recordForm.type = typeBtn.dataset.recType; state.recordForm.error = ""; renderApp(); return; }
+      const dirBtn = e.target.closest("[data-rec-dir]");
+      if (dirBtn) { state.recordForm.direction = dirBtn.dataset.recDir; renderApp(); return; }
+      const accBtn = e.target.closest("[data-rec-acc]");
+      if (accBtn) { state.recordForm.accountId = accBtn.dataset.recAcc; renderApp(); return; }
+      const catBtn = e.target.closest("[data-rec-cat]");
+      if (catBtn) { state.recordForm.categoryId = catBtn.dataset.recCat; renderApp(); return; }
+      const modeBtn = e.target.closest("[data-rec-mode]");
+      if (modeBtn) {
+        if (state.recordForm.type === "transfer") state.recordForm.transferMode = modeBtn.dataset.recMode;
+        else if (state.recordForm.type === "deposit") state.recordForm.depositMode = modeBtn.dataset.recMode;
+        else state.recordForm.expenseMode = modeBtn.dataset.recMode;
+        renderApp();
+      }
+    });
+
+    document.addEventListener("input", (e) => {
+      const id = e.target.id;
+      if (id === "rec-amount-input") { state.recordForm.amount = e.target.value; state.recordForm.error = ""; }
+      else if (id === "rec-date-input") { state.recordForm.date = e.target.value; }
+      else if (id === "rec-note-input") { state.recordForm.note = e.target.value; }
+      else if (state.pinModal) {
+        if (id === "modal-pin-1" || id === "modal-pin-2" || id === "modal-cur-pin") {
+          const digits = e.target.value.replace(/\D/g, "").slice(0, 6);
+          if (e.target.value !== digits) e.target.value = digits;
+          if (id === "modal-pin-1") state.pinModal.pin1 = digits;
+          else if (id === "modal-pin-2") state.pinModal.pin2 = digits;
+          else state.pinModal.currentPin = digits;
+        } else if (id === "modal-master-1") {
+          state.pinModal.masterInput = e.target.value;
+        } else if (id === "modal-master-2") {
+          state.pinModal.masterConfirm = e.target.value;
+        }
+      }
+    });
+
+    document.addEventListener("change", (e) => {
+      if (e.target.id === "flt-type") { state.filters.typeKey = e.target.value; renderApp(); }
+      else if (e.target.id === "flt-cat") { state.filters.categoryId = e.target.value; renderApp(); }
+    });
+
+    document.addEventListener("submit", (e) => {
+      e.preventDefault();
+      if (e.target.id === "pin-modal-form") {
+        handleModalSubmit();
+        return;
+      }
+      if (e.target.id === "record-form") {
+        const f = state.recordForm;
+        const paise = parseRupeesToPaise(f.amount);
+        if (!paise) {
+          f.error = "Please enter an amount greater than 0.";
+          renderApp();
+          document.getElementById("rec-amount-input")?.focus();
+          return;
+        }
+        const direction = f.type === "deposit" ? "incoming" : f.type === "expense" ? "outgoing" : f.direction;
+        const mode = f.type === "deposit" ? f.depositMode : f.type === "transfer" ? f.transferMode : f.expenseMode;
+        const newTx = {
+          id: `tx-${Date.now()}`,
+          type: f.type,
+          direction,
+          amountPaise: paise,
+          accountId: f.accountId,
+          categoryId: f.type === "expense" ? f.categoryId : null,
+          mode,
+          date: f.date || TODAY,
+          note: f.note.trim(),
+          createdAt: new Date().toISOString()
+        };
+        state.transactions.unshift(newTx);
+        const acc = getAccountById(newTx.accountId);
+        const label = newTx.type === "expense" ? (getCategoryById(newTx.categoryId)?.name || "Expense") : newTx.type === "deposit" ? `Deposit (${mode})` : `Transfer (${mode})`;
+        f.amount = "";
+        f.note = "";
+        f.error = "";
+        setSaveBanner(`Saved ${label} (${formatRupees(paise)}) to ${acc ? acc.name : "account"}.`);
+
+        // Stay on Record if locked; navigate to Home if unlocked
+        if (!isLocked()) {
+          state.view = "home";
+        }
+        renderApp();
+      }
+    });
+
+    // Keyboard modal accessibility: Escape dismissal + Focus trapping
+    document.addEventListener("keydown", (e) => {
+      const panel = document.querySelector(".dialog-panel");
+      if (!panel) return;
+
+      if (e.key === "Escape") {
+        if (state.pinModal) closePinModal();
+        else if (state.editingTxId) { state.editingTxId = null; renderApp(); }
+        return;
+      }
+
+      if (e.key === "Tab") {
+        const focusables = [...panel.querySelectorAll("button:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex='-1'])")];
+        if (focusables.length === 0) return;
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    });
+
+    renderApp();
+  </script>
+</body>
+</html>

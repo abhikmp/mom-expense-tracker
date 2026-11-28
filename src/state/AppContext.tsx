@@ -19,26 +19,49 @@ import {
   type BankAccount,
   type Category,
   type FilterState,
+  type SecurityRecord,
+  type SecurityThrottleRecord,
   type Transaction,
   type ViewId,
 } from '../domain/types';
 import { buildBackupPayload, downloadJsonBackup } from '../export/backup';
 import { exportCsvFiles } from '../export/csv';
 import {
+  hashSecret,
+  validateMasterPassword,
+  validatePin,
+  verifySecret,
+} from '../security/crypto';
+import {
+  clearSecurityThrottle,
+  createSecurityRecordIfAbsent,
   createTransactionAtomic,
+  deleteSecurityRecord,
   deleteTransactionAtomic,
   loadAppState,
+  loadSecurityRecord,
+  loadSecurityThrottle,
   markBackupOrExportCompleted,
   openAppDb,
+  recordFailedAttemptAtomic,
   restoreBackupAtomic,
+  restoreDeletedTransactionAtomic,
   saveAccount,
   saveCategory,
+  saveSecurityRecord,
   saveSettings,
   updateTransactionAtomic,
   type MomExpenseDbSchema,
 } from '../storage/db';
 
 export type NewTransactionInput = Omit<Transaction, 'id' | 'createdAt' | 'updatedAt'>;
+
+export type PinModalMode = 'unlock' | 'forgot-master' | 'reset-pin' | 'setup' | 'change' | 'disable';
+
+export interface ShowToastOptions {
+  durationMs?: number | null;
+  isDeleteUndo?: boolean;
+}
 
 export interface NavigateOptions {
   manageJumpTarget?: string | null;
@@ -62,6 +85,15 @@ export interface AppContextValue {
   statusToastTone: 'success' | 'error';
   storageError: string | null;
   backupDismissed: boolean;
+  hasPin: boolean;
+  isUnlocked: boolean;
+  isLocked: boolean;
+  pinModalMode: PinModalMode | null;
+  failedPinAttempts: number;
+  pinCooldownUntil: number;
+  failedMasterAttempts: number;
+  masterCooldownUntil: number;
+  lastDeletedTx: Transaction | null;
   navigate: (view: ViewId, opts?: NavigateOptions) => void;
   openBankHistory: (bankId: string) => void;
   openRecordForBank: (bankId: string) => void;
@@ -72,12 +104,34 @@ export interface AppContextValue {
   setFilters: (patch: Partial<FilterState>) => void;
   resetFilters: () => void;
   dismissSaveBanner: () => void;
-  showToast: (message: string, tone?: 'success' | 'error') => void;
+  showToast: (
+    message: string,
+    tone?: 'success' | 'error',
+    options?: number | ShowToastOptions
+  ) => void;
   dismissToast: () => void;
   dismissBackupReminder: () => void;
+  openPinModal: (mode: PinModalMode) => void;
+  closePinModal: () => void;
+  lockApp: (toastMessage?: string) => void;
+  verifyPinAndUnlock: (pin: string) => Promise<{ ok: true } | { ok: false; error: string }>;
+  verifyMasterAndProceed: (
+    masterPassword: string
+  ) => Promise<{ ok: true } | { ok: false; error: string }>;
+  setupPin: (
+    pin: string,
+    masterPassword: string
+  ) => Promise<{ ok: true } | { ok: false; error: string }>;
+  resetPinAfterMaster: (newPin: string) => Promise<{ ok: true } | { ok: false; error: string }>;
+  changePin: (
+    currentPin: string,
+    newPin: string
+  ) => Promise<{ ok: true } | { ok: false; error: string }>;
+  disablePin: (currentPin: string) => Promise<{ ok: true } | { ok: false; error: string }>;
   recordTransaction: (input: NewTransactionInput) => Promise<Transaction>;
   updateTransaction: (tx: Transaction) => Promise<void>;
   deleteTransaction: (txId: string) => Promise<void>;
+  undoDeleteTransaction: () => Promise<void>;
   addAccount: (name: string, startingBalancePaise: number) => Promise<void>;
   renameAccount: (id: string, name: string) => Promise<void>;
   adjustAccountBalance: (id: string, desiredBalancePaise: number) => Promise<void>;
@@ -140,13 +194,62 @@ export function AppProvider({
   const [saveBannerSeq, setSaveBannerSeq] = useState(0);
   const [statusToast, setStatusToast] = useState<string | null>(null);
   const [statusToastTone, setStatusToastTone] = useState<'success' | 'error'>('success');
+  const [statusToastDurationMs, setStatusToastDurationMs] = useState<number | null>(null);
   const [statusToastSeq, setStatusToastSeq] = useState(0);
   const [storageError, setStorageError] = useState<string | null>(null);
   const [backupDismissed, setBackupDismissed] = useState(false);
 
+  const [securityRecord, setSecurityRecord] = useState<SecurityRecord | null>(null);
+  const [isUnlocked, setIsUnlocked] = useState(false);
+  const [pinModalMode, setPinModalMode] = useState<PinModalMode | null>(null);
+  const [failedPinAttempts, setFailedPinAttempts] = useState(0);
+  const [pinCooldownUntil, setPinCooldownUntil] = useState(0);
+  const [failedMasterAttempts, setFailedMasterAttempts] = useState(0);
+  const [masterCooldownUntil, setMasterCooldownUntil] = useState(0);
+  const [lastDeletedTx, setLastDeletedTx] = useState<Transaction | null>(null);
+
+  const hasPin = securityRecord !== null;
+  const isLocked = hasPin && !isUnlocked;
+
   const dbRef = useRef<IDBPDatabase<MomExpenseDbSchema> | null>(null);
   const dbReadyRef = useRef<Promise<IDBPDatabase<MomExpenseDbSchema>> | null>(null);
   const themeToggledDuringInitRef = useRef(false);
+  const backgroundedAtRef = useRef<number | null>(null);
+  const lastHiddenAtRef = useRef<number | null>(null);
+  const undoInFlightRef = useRef(false);
+  const securityRecordRef = useRef<SecurityRecord | null>(null);
+  const isUnlockedRef = useRef(false);
+  const pendingUndoEpochRef = useRef(0);
+  const viewRef = useRef<ViewId>(view);
+  const broadcastChannelRef = useRef<BroadcastChannel | null>(null);
+
+  const updateUnlocked = useCallback((next: boolean) => {
+    isUnlockedRef.current = next;
+    setIsUnlocked(next);
+  }, []);
+
+  const applyThrottleState = useCallback((throttle: SecurityThrottleRecord) => {
+    setFailedPinAttempts(throttle.failedPinAttempts);
+    setPinCooldownUntil(throttle.pinCooldownUntil);
+    setFailedMasterAttempts(throttle.failedMasterAttempts);
+    setMasterCooldownUntil(throttle.masterCooldownUntil);
+  }, []);
+
+  const resetThrottleState = useCallback(() => {
+    setFailedPinAttempts(0);
+    setPinCooldownUntil(0);
+    setFailedMasterAttempts(0);
+    setMasterCooldownUntil(0);
+  }, []);
+
+  const checkIsLocked = useCallback(
+    () => securityRecordRef.current !== null && !isUnlockedRef.current,
+    []
+  );
+
+  useEffect(() => {
+    viewRef.current = view;
+  }, [view]);
 
   useEffect(() => {
     let cancelled = false;
@@ -160,7 +263,11 @@ export function AppProvider({
         throw new Error('AppProvider unmounted before DB initialization completed.');
       }
       dbRef.current = db;
-      const loaded = await loadAppState(db);
+      const [loaded, loadedSecurity, loadedThrottle] = await Promise.all([
+        loadAppState(db),
+        loadSecurityRecord(db),
+        loadSecurityThrottle(db),
+      ]);
       if (!cancelled) {
         setAccounts(loaded.accounts);
         setCategories(loaded.categories);
@@ -170,6 +277,11 @@ export function AppProvider({
             ? { ...loaded.settings, theme: prev.theme }
             : loaded.settings
         );
+        securityRecordRef.current = loadedSecurity;
+        setSecurityRecord(loadedSecurity);
+        updateUnlocked(false);
+        setPinModalMode(null);
+        applyThrottleState(loadedThrottle);
         setStorageError(null);
         setLoading(false);
       }
@@ -184,6 +296,7 @@ export function AppProvider({
       if (!cancelled) {
         setStorageError(STORAGE_OPEN_ERROR);
         setStatusToastTone('error');
+        setStatusToastDurationMs(null);
         setStatusToast(STORAGE_OPEN_ERROR);
         setLoading(false);
       }
@@ -211,18 +324,21 @@ export function AppProvider({
     if (!saveBanner) return;
     const timer = window.setTimeout(() => {
       setSaveBanner(null);
-    }, 4000);
+    }, 2000);
     return () => window.clearTimeout(timer);
   }, [saveBanner, saveBannerSeq]);
 
   useEffect(() => {
-    if (!statusToast || statusToastTone !== 'success') return;
+    if (!statusToast || statusToastDurationMs === null) return;
     const timer = window.setTimeout(() => {
+      pendingUndoEpochRef.current += 1;
       setStatusToast(null);
       setStatusToastTone('success');
-    }, 3000);
+      setStatusToastDurationMs(null);
+      setLastDeletedTx(null);
+    }, statusToastDurationMs);
     return () => window.clearTimeout(timer);
-  }, [statusToast, statusToastTone, statusToastSeq]);
+  }, [statusToast, statusToastDurationMs, statusToastSeq]);
 
   const getDb = useCallback(async (): Promise<IDBPDatabase<MomExpenseDbSchema>> => {
     if (dbRef.current) {
@@ -274,20 +390,214 @@ export function AppProvider({
     setSaveBanner(null);
   }, []);
 
-  const showToast = useCallback((message: string, tone: 'success' | 'error' = 'success') => {
-    setStatusToastSeq((n) => n + 1);
-    setStatusToastTone(tone);
-    setStatusToast(message);
-  }, []);
+  const showToast = useCallback(
+    (
+      message: string,
+      tone: 'success' | 'error' = 'success',
+      options?: number | ShowToastOptions
+    ) => {
+      const resolvedOptions: ShowToastOptions =
+        typeof options === 'number' ? { durationMs: options } : (options ?? {});
+      const durationMs =
+        resolvedOptions.durationMs !== undefined
+          ? resolvedOptions.durationMs
+          : tone === 'success'
+            ? 2000
+            : null;
+      if (!resolvedOptions.isDeleteUndo) {
+        pendingUndoEpochRef.current += 1;
+        setLastDeletedTx(null);
+      }
+      setStatusToastSeq((n) => n + 1);
+      setStatusToastDurationMs(durationMs);
+      setStatusToastTone(tone);
+      setStatusToast(message);
+    },
+    []
+  );
 
   const dismissToast = useCallback(() => {
+    pendingUndoEpochRef.current += 1;
     setStatusToast(null);
     setStatusToastTone('success');
+    setStatusToastDurationMs(null);
+    setLastDeletedTx(null);
   }, []);
 
   const dismissBackupReminder = useCallback(() => {
     setBackupDismissed(true);
   }, []);
+
+  const openPinModal = useCallback((mode: PinModalMode) => {
+    setPinModalMode(mode);
+  }, []);
+
+  const closePinModal = useCallback(() => {
+    setPinModalMode(null);
+  }, []);
+
+  const lockApp = useCallback(
+    (toastMessage?: string) => {
+      pendingUndoEpochRef.current += 1;
+      updateUnlocked(false);
+      setPinModalMode(null);
+      setLastDeletedTx(null);
+      backgroundedAtRef.current = null;
+      if (view === 'bank-tx' || view === 'all') {
+        setView('home');
+        setSelectedBankId(null);
+      }
+      if (toastMessage) {
+        showToast(toastMessage, 'success', 2000);
+      } else {
+        dismissToast();
+      }
+    },
+    [dismissToast, showToast, updateUnlocked, view]
+  );
+
+  const postSecurityChanged = useCallback(() => {
+    try {
+      broadcastChannelRef.current?.postMessage({ type: 'security-changed' });
+    } catch {
+      // Ignore BroadcastChannel errors (e.g., closed channel during teardown)
+    }
+  }, []);
+
+  const syncSecurityFromDb = useCallback(async (): Promise<SecurityRecord | null> => {
+    const db = await getDb();
+    const [latest, latestThrottle] = await Promise.all([
+      loadSecurityRecord(db),
+      loadSecurityThrottle(db),
+    ]);
+    const current = securityRecordRef.current;
+
+    if (!latest) {
+      if (current !== null) {
+        securityRecordRef.current = null;
+        setSecurityRecord(null);
+        updateUnlocked(false);
+        backgroundedAtRef.current = null;
+        setPinModalMode((prev) => (prev && prev !== 'setup' ? null : prev));
+      }
+      applyThrottleState(latestThrottle);
+      return null;
+    }
+
+    if (!current || current.updatedAt !== latest.updatedAt) {
+      pendingUndoEpochRef.current += 1;
+      securityRecordRef.current = latest;
+      setSecurityRecord(latest);
+      updateUnlocked(false);
+      backgroundedAtRef.current = null;
+      setLastDeletedTx(null);
+      setPinModalMode((prev) =>
+        prev === 'setup' || prev === 'change' || prev === 'disable' || prev === 'reset-pin'
+          ? null
+          : prev
+      );
+      if (viewRef.current === 'bank-tx' || viewRef.current === 'all') {
+        setView('home');
+        setSelectedBankId(null);
+      }
+    }
+
+    applyThrottleState(latestThrottle);
+    return latest;
+  }, [applyThrottleState, getDb, updateUnlocked]);
+
+  useEffect(() => {
+    const channelName = `mom-expense-security-${dbName ?? 'default'}`;
+    let channel: BroadcastChannel | null = null;
+    if (typeof BroadcastChannel !== 'undefined') {
+      channel = new BroadcastChannel(channelName);
+      broadcastChannelRef.current = channel;
+      channel.onmessage = () => {
+        void syncSecurityFromDb().catch(() => {});
+      };
+    }
+
+    const handleFocus = () => {
+      void syncSecurityFromDb().catch(() => {});
+    };
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        void syncSecurityFromDb().catch(() => {});
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      if (channel) {
+        channel.close();
+        if (broadcastChannelRef.current === channel) {
+          broadcastChannelRef.current = null;
+        }
+      }
+    };
+  }, [dbName, syncSecurityFromDb]);
+
+  useEffect(() => {
+    const trackHidden = () => {
+      lastHiddenAtRef.current ??= Date.now();
+    };
+    const handleVisibility = () => {
+      if (document.visibilityState === 'hidden') {
+        trackHidden();
+      } else if (document.visibilityState === 'visible') {
+        lastHiddenAtRef.current = null;
+      }
+    };
+    if (document.visibilityState === 'hidden') {
+      trackHidden();
+    }
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('pagehide', trackHidden);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('pagehide', trackHidden);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!hasPin || !isUnlocked) {
+      backgroundedAtRef.current = null;
+      return;
+    }
+
+    const markBackgrounded = () => {
+      backgroundedAtRef.current ??= lastHiddenAtRef.current ?? Date.now();
+    };
+
+    if (document.visibilityState === 'hidden') {
+      markBackgrounded();
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        markBackgrounded();
+        return;
+      }
+      if (document.visibilityState === 'visible' && backgroundedAtRef.current !== null) {
+        const elapsed = Date.now() - backgroundedAtRef.current;
+        if (elapsed > 60_000) {
+          lockApp('Auto-locked after being away for over 1 minute.');
+        } else {
+          backgroundedAtRef.current = null;
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('pagehide', markBackgrounded);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('pagehide', markBackgrounded);
+    };
+  }, [hasPin, isUnlocked, lockApp]);
 
   const runWithErrorToast = useCallback(
     async <T,>(
@@ -365,11 +675,13 @@ export function AppProvider({
           setSaveBannerSeq((n) => n + 1);
           setSaveBanner(`Saved ${label} (${formatRupees(record.amountPaise)}) to ${accName}.`);
           setPreselectedAccountId(null);
-          setView('home');
+          if (!(hasPin && !isUnlocked)) {
+            setView('home');
+          }
           return record;
         }
       ),
-    [accounts, categories, getDb, runWithErrorToast]
+    [accounts, categories, getDb, hasPin, isUnlocked, runWithErrorToast]
   );
 
   const updateTransaction = useCallback(
@@ -393,13 +705,381 @@ export function AppProvider({
   const deleteTransaction = useCallback(
     async (txId: string): Promise<void> =>
       runWithErrorToast('Could not delete this entry. Please try again.', async () => {
+        const targetTx = transactions.find((item) => item.id === txId) ?? null;
         const db = await getDb();
         const nextSettings = await deleteTransactionAtomic(db, txId);
         setTransactions((prev) => prev.filter((item) => item.id !== txId));
         setSettings(nextSettings);
-        showToast('Transaction deleted and balances updated.');
+        if (checkIsLocked()) {
+          pendingUndoEpochRef.current += 1;
+          setLastDeletedTx(null);
+          return;
+        }
+        pendingUndoEpochRef.current += 1;
+        setLastDeletedTx(targetTx);
+        showToast('Transaction deleted and balances updated.', 'error', {
+          durationMs: 4000,
+          isDeleteUndo: true,
+        });
       }),
-    [getDb, runWithErrorToast, showToast]
+    [checkIsLocked, getDb, runWithErrorToast, showToast, transactions]
+  );
+
+  const undoDeleteTransaction = useCallback(async (): Promise<void> => {
+    const txToRestore = lastDeletedTx;
+    if (!txToRestore || undoInFlightRef.current || checkIsLocked()) return;
+    const attemptEpoch = pendingUndoEpochRef.current;
+    undoInFlightRef.current = true;
+    try {
+      const db = await getDb();
+      const nextSettings = await restoreDeletedTransactionAtomic(db, txToRestore);
+      setTransactions((prev) =>
+        prev.some((item) => item.id === txToRestore.id) ? prev : [txToRestore, ...prev]
+      );
+      setSettings(nextSettings);
+      if (attemptEpoch === pendingUndoEpochRef.current && !checkIsLocked()) {
+        pendingUndoEpochRef.current += 1;
+        setLastDeletedTx(null);
+        showToast('Transaction restored and balances updated.', 'success');
+      } else {
+        setLastDeletedTx(null);
+      }
+    } catch {
+      if (attemptEpoch === pendingUndoEpochRef.current && !checkIsLocked()) {
+        setLastDeletedTx(txToRestore);
+        showToast('Could not restore this entry. Please try again.', 'error', {
+          isDeleteUndo: true,
+        });
+      }
+    } finally {
+      undoInFlightRef.current = false;
+    }
+  }, [checkIsLocked, getDb, lastDeletedTx, showToast]);
+
+  const verifyCurrentPin = useCallback(
+    async (
+      pin: string,
+      wrongPinMessage: string
+    ): Promise<
+      { ok: true; record: SecurityRecord; hasThrottle: boolean } | { ok: false; error: string }
+    > => {
+      if (pinCooldownUntil > Date.now()) {
+        const remainingSec = Math.ceil((pinCooldownUntil - Date.now()) / 1000);
+        return {
+          ok: false,
+          error: `Too many wrong PINs. Wait ${remainingSec} seconds and try again.`,
+        };
+      }
+      const check = validatePin(pin);
+      if (!check.valid) {
+        return { ok: false, error: check.error };
+      }
+      try {
+        const db = await getDb();
+        const [latestRecord, latestThrottle] = await Promise.all([
+          loadSecurityRecord(db),
+          loadSecurityThrottle(db),
+        ]);
+        if (latestRecord?.updatedAt !== securityRecordRef.current?.updatedAt) {
+          securityRecordRef.current = latestRecord;
+          setSecurityRecord(latestRecord);
+        }
+        applyThrottleState(latestThrottle);
+        if (!latestRecord) {
+          return { ok: false, error: 'PIN lock is not set up.' };
+        }
+        if (latestThrottle.pinCooldownUntil > Date.now()) {
+          const remainingSec = Math.ceil((latestThrottle.pinCooldownUntil - Date.now()) / 1000);
+          return {
+            ok: false,
+            error: `Too many wrong PINs. Wait ${remainingSec} seconds and try again.`,
+          };
+        }
+        const matched = await verifySecret(pin, latestRecord.pinHash);
+        if (!matched) {
+          const updatedThrottle = await recordFailedAttemptAtomic(db, 'pin');
+          applyThrottleState(updatedThrottle);
+          postSecurityChanged();
+          if (updatedThrottle.failedPinAttempts >= 5) {
+            return {
+              ok: false,
+              error: 'Too many wrong PINs. Please wait 30 seconds or use your Master Password.',
+            };
+          }
+          return { ok: false, error: wrongPinMessage };
+        }
+        const hasThrottle =
+          latestThrottle.failedPinAttempts > 0 ||
+          latestThrottle.pinCooldownUntil > 0 ||
+          latestThrottle.failedMasterAttempts > 0 ||
+          latestThrottle.masterCooldownUntil > 0;
+        return { ok: true, record: latestRecord, hasThrottle };
+      } catch {
+        return { ok: false, error: 'Could not verify credentials. Please try again.' };
+      }
+    },
+    [applyThrottleState, getDb, pinCooldownUntil, postSecurityChanged]
+  );
+
+  const verifyPinAndUnlock = useCallback(
+    async (pin: string): Promise<{ ok: true } | { ok: false; error: string }> => {
+      const auth = await verifyCurrentPin(pin, 'Incorrect PIN. Please try again.');
+      if (!auth.ok) {
+        return { ok: false, error: auth.error };
+      }
+      if (auth.hasThrottle) {
+        try {
+          const db = await getDb();
+          await clearSecurityThrottle(db, 'all');
+          postSecurityChanged();
+        } catch {
+          // Best-effort throttle clear after verified unlock
+        }
+      }
+      resetThrottleState();
+      backgroundedAtRef.current =
+        document.visibilityState === 'hidden' ? (lastHiddenAtRef.current ?? Date.now()) : null;
+      updateUnlocked(true);
+      setPinModalMode(null);
+      return { ok: true };
+    },
+    [getDb, postSecurityChanged, resetThrottleState, updateUnlocked, verifyCurrentPin]
+  );
+
+  const verifyMasterAndProceed = useCallback(
+    async (masterPassword: string): Promise<{ ok: true } | { ok: false; error: string }> => {
+      if (masterCooldownUntil > Date.now()) {
+        const remainingSec = Math.ceil((masterCooldownUntil - Date.now()) / 1000);
+        return {
+          ok: false,
+          error: `Too many wrong attempts. Wait ${remainingSec} seconds and try again.`,
+        };
+      }
+      if (!masterPassword) {
+        return { ok: false, error: 'Please enter your Master Password.' };
+      }
+      try {
+        const db = await getDb();
+        const [latestRecord, latestThrottle] = await Promise.all([
+          loadSecurityRecord(db),
+          loadSecurityThrottle(db),
+        ]);
+        if (latestRecord?.updatedAt !== securityRecordRef.current?.updatedAt) {
+          securityRecordRef.current = latestRecord;
+          setSecurityRecord(latestRecord);
+        }
+        applyThrottleState(latestThrottle);
+        if (!latestRecord) {
+          return { ok: false, error: 'PIN lock is not set up.' };
+        }
+        if (latestThrottle.masterCooldownUntil > Date.now()) {
+          const remainingSec = Math.ceil((latestThrottle.masterCooldownUntil - Date.now()) / 1000);
+          return {
+            ok: false,
+            error: `Too many wrong attempts. Wait ${remainingSec} seconds and try again.`,
+          };
+        }
+        const matched = await verifySecret(masterPassword, latestRecord.masterPasswordHash);
+        if (!matched) {
+          const updatedThrottle = await recordFailedAttemptAtomic(db, 'master');
+          applyThrottleState(updatedThrottle);
+          postSecurityChanged();
+          if (updatedThrottle.failedMasterAttempts >= 5) {
+            return {
+              ok: false,
+              error: 'Too many wrong attempts. Please wait 30 seconds and try again.',
+            };
+          }
+          return { ok: false, error: 'Incorrect Master Password. Please try again.' };
+        }
+        const hasThrottle =
+          latestThrottle.failedPinAttempts > 0 ||
+          latestThrottle.pinCooldownUntil > 0 ||
+          latestThrottle.failedMasterAttempts > 0 ||
+          latestThrottle.masterCooldownUntil > 0;
+        if (hasThrottle) {
+          try {
+            await clearSecurityThrottle(db, 'all');
+            postSecurityChanged();
+          } catch {
+            // Best-effort throttle clear after verified recovery
+          }
+        }
+        resetThrottleState();
+        backgroundedAtRef.current =
+          document.visibilityState === 'hidden' ? (lastHiddenAtRef.current ?? Date.now()) : null;
+        updateUnlocked(true);
+        setPinModalMode('reset-pin');
+        return { ok: true };
+      } catch {
+        return { ok: false, error: 'Could not verify credentials. Please try again.' };
+      }
+    },
+    [
+      applyThrottleState,
+      getDb,
+      masterCooldownUntil,
+      postSecurityChanged,
+      resetThrottleState,
+      updateUnlocked,
+    ]
+  );
+
+  const setupPin = useCallback(
+    async (
+      pin: string,
+      masterPassword: string
+    ): Promise<{ ok: true } | { ok: false; error: string }> => {
+      const pinCheck = validatePin(pin);
+      if (!pinCheck.valid) {
+        return { ok: false, error: pinCheck.error };
+      }
+      const pwCheck = validateMasterPassword(masterPassword);
+      if (!pwCheck.valid) {
+        return { ok: false, error: pwCheck.error };
+      }
+      try {
+        const [pinHash, masterPasswordHash] = await Promise.all([
+          hashSecret(pin),
+          hashSecret(masterPassword),
+        ]);
+        const record: SecurityRecord = {
+          key: 'lock',
+          pinHash,
+          masterPasswordHash,
+          updatedAt: new Date().toISOString(),
+        };
+        const db = await getDb();
+        const created = await createSecurityRecordIfAbsent(db, record);
+        if (!created.created) {
+          securityRecordRef.current = created.existing;
+          setSecurityRecord(created.existing);
+          updateUnlocked(false);
+          backgroundedAtRef.current = null;
+          const existingThrottle = await loadSecurityThrottle(db);
+          applyThrottleState(existingThrottle);
+          return {
+            ok: false,
+            error: 'PIN lock is already enabled. Please unlock with your existing PIN.',
+          };
+        }
+        securityRecordRef.current = record;
+        setSecurityRecord(record);
+        backgroundedAtRef.current =
+          document.visibilityState === 'hidden' ? (lastHiddenAtRef.current ?? Date.now()) : null;
+        updateUnlocked(true);
+        resetThrottleState();
+        setPinModalMode(null);
+        postSecurityChanged();
+        showToast('PIN lock enabled.', 'success');
+        return { ok: true };
+      } catch {
+        return { ok: false, error: 'Could not save PIN lock settings. Please try again.' };
+      }
+    },
+    [applyThrottleState, getDb, postSecurityChanged, resetThrottleState, showToast, updateUnlocked]
+  );
+
+  const resetPinAfterMaster = useCallback(
+    async (newPin: string): Promise<{ ok: true } | { ok: false; error: string }> => {
+      const pinCheck = validatePin(newPin);
+      if (!pinCheck.valid) {
+        return { ok: false, error: pinCheck.error };
+      }
+      try {
+        const db = await getDb();
+        const latestRecord = await loadSecurityRecord(db);
+        if (!latestRecord) {
+          securityRecordRef.current = null;
+          setSecurityRecord(null);
+          return { ok: false, error: 'PIN lock is not set up.' };
+        }
+        const pinHash = await hashSecret(newPin);
+        const updated: SecurityRecord = {
+          ...latestRecord,
+          pinHash,
+          updatedAt: new Date().toISOString(),
+        };
+        await saveSecurityRecord(db, updated);
+        securityRecordRef.current = updated;
+        setSecurityRecord(updated);
+        backgroundedAtRef.current =
+          document.visibilityState === 'hidden' ? (lastHiddenAtRef.current ?? Date.now()) : null;
+        updateUnlocked(true);
+        resetThrottleState();
+        setPinModalMode(null);
+        postSecurityChanged();
+        showToast('PIN updated and app unlocked.', 'success');
+        return { ok: true };
+      } catch {
+        return { ok: false, error: 'Could not update PIN. Please try again.' };
+      }
+    },
+    [getDb, postSecurityChanged, resetThrottleState, showToast, updateUnlocked]
+  );
+
+  const changePin = useCallback(
+    async (
+      currentPin: string,
+      newPin: string
+    ): Promise<{ ok: true } | { ok: false; error: string }> => {
+      const auth = await verifyCurrentPin(currentPin, 'Current PIN is incorrect.');
+      if (!auth.ok) {
+        return { ok: false, error: auth.error };
+      }
+      const newCheck = validatePin(newPin);
+      if (!newCheck.valid) {
+        return { ok: false, error: newCheck.error };
+      }
+      try {
+        const pinHash = await hashSecret(newPin);
+        const updated: SecurityRecord = {
+          ...auth.record,
+          pinHash,
+          updatedAt: new Date().toISOString(),
+        };
+        const db = await getDb();
+        await saveSecurityRecord(db, updated);
+        securityRecordRef.current = updated;
+        setSecurityRecord(updated);
+        backgroundedAtRef.current =
+          document.visibilityState === 'hidden' ? (lastHiddenAtRef.current ?? Date.now()) : null;
+        updateUnlocked(true);
+        resetThrottleState();
+        setPinModalMode(null);
+        postSecurityChanged();
+        showToast('PIN changed.', 'success');
+        return { ok: true };
+      } catch {
+        return { ok: false, error: 'Could not update PIN. Please try again.' };
+      }
+    },
+    [getDb, postSecurityChanged, resetThrottleState, showToast, updateUnlocked, verifyCurrentPin]
+  );
+
+  const disablePin = useCallback(
+    async (currentPin: string): Promise<{ ok: true } | { ok: false; error: string }> => {
+      const auth = await verifyCurrentPin(currentPin, 'Current PIN is incorrect.');
+      if (!auth.ok) {
+        return { ok: false, error: auth.error };
+      }
+      try {
+        const db = await getDb();
+        await deleteSecurityRecord(db);
+        securityRecordRef.current = null;
+        setSecurityRecord(null);
+        updateUnlocked(false);
+        backgroundedAtRef.current = null;
+        resetThrottleState();
+        setPinModalMode(null);
+        postSecurityChanged();
+        showToast('PIN lock turned off.', 'success');
+        return { ok: true };
+      } catch {
+        return { ok: false, error: 'Could not turn off PIN lock. Please try again.' };
+      }
+    },
+    [getDb, postSecurityChanged, resetThrottleState, showToast, updateUnlocked, verifyCurrentPin]
   );
 
   const addAccount = useCallback(
@@ -635,6 +1315,15 @@ export function AppProvider({
       statusToastTone,
       storageError,
       backupDismissed,
+      hasPin,
+      isUnlocked,
+      isLocked,
+      pinModalMode,
+      failedPinAttempts,
+      pinCooldownUntil,
+      failedMasterAttempts,
+      masterCooldownUntil,
+      lastDeletedTx,
       navigate,
       openBankHistory,
       openRecordForBank,
@@ -648,9 +1337,19 @@ export function AppProvider({
       showToast,
       dismissToast,
       dismissBackupReminder,
+      openPinModal,
+      closePinModal,
+      lockApp,
+      verifyPinAndUnlock,
+      verifyMasterAndProceed,
+      setupPin,
+      resetPinAfterMaster,
+      changePin,
+      disablePin,
       recordTransaction,
       updateTransaction,
       deleteTransaction,
+      undoDeleteTransaction,
       addAccount,
       renameAccount,
       adjustAccountBalance,
@@ -680,6 +1379,15 @@ export function AppProvider({
       statusToastTone,
       storageError,
       backupDismissed,
+      hasPin,
+      isUnlocked,
+      isLocked,
+      pinModalMode,
+      failedPinAttempts,
+      pinCooldownUntil,
+      failedMasterAttempts,
+      masterCooldownUntil,
+      lastDeletedTx,
       navigate,
       openBankHistory,
       openRecordForBank,
@@ -693,9 +1401,19 @@ export function AppProvider({
       showToast,
       dismissToast,
       dismissBackupReminder,
+      openPinModal,
+      closePinModal,
+      lockApp,
+      verifyPinAndUnlock,
+      verifyMasterAndProceed,
+      setupPin,
+      resetPinAfterMaster,
+      changePin,
+      disablePin,
       recordTransaction,
       updateTransaction,
       deleteTransaction,
+      undoDeleteTransaction,
       addAccount,
       renameAccount,
       adjustAccountBalance,

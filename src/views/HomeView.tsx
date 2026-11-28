@@ -1,5 +1,6 @@
 import { CaretLeft, CaretRight, SlidersHorizontal } from '@phosphor-icons/react';
 import { Banners } from '../components/Banners';
+import { LockedCard } from '../components/LockedCard';
 import { TopBar } from '../components/TopBar';
 import { TransactionRow } from '../components/TransactionRow';
 import {
@@ -26,9 +27,11 @@ export function HomeView({ onEditTx }: HomeViewProps) {
     transactions,
     selectedMonth,
     storageError,
+    isLocked,
     setSelectedMonth,
     navigate,
     openBankHistory,
+    openPinModal,
   } = useApp();
 
   const activeAccounts = accounts.filter((a) => !a.archived);
@@ -41,6 +44,7 @@ export function HomeView({ onEditTx }: HomeViewProps) {
     <>
       <TopBar
         title="Expenses"
+        showLock
         rightAction={
           <button
             type="button"
@@ -56,7 +60,13 @@ export function HomeView({ onEditTx }: HomeViewProps) {
       <div className="phone-scroll">
         <Banners />
 
-        {storageError && activeAccounts.length === 0 ? (
+        {isLocked ? (
+          <LockedCard
+            title="Financial details are hidden"
+            copy="Unlock with your PIN to view bank balances, monthly spending, and recent transactions."
+            onUnlock={() => openPinModal('unlock')}
+          />
+        ) : storageError && activeAccounts.length === 0 ? (
           <section className="card" aria-label="Storage error">
             <div className="empty-box">
               <p

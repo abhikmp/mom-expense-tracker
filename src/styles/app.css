@@ -148,7 +148,9 @@ button { touch-action: manipulation; }
   transition: background-color 140ms var(--ease-out), border-color 140ms var(--ease-out), transform 140ms var(--ease-out);
 }
 
-.btn:active,
+.btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.btn:not(:disabled):active,
 .icon-btn:active,
 .chip-btn:active,
 .tx-row-btn:active,
@@ -164,7 +166,8 @@ button { touch-action: manipulation; }
 .tx-row-btn:focus-visible,
 .account-row-btn:focus-visible,
 .android-nav-btn:focus-visible,
-.seg-btn:focus-visible {
+.seg-btn:focus-visible,
+.link-btn:focus-visible {
   outline: 2px solid var(--color-secondary);
   outline-offset: 2px;
 }
@@ -174,7 +177,23 @@ button { touch-action: manipulation; }
 .btn-ghost { background: transparent; color: var(--color-foreground); padding: 0 10px; }
 .btn-danger-outline { background: var(--color-card); color: var(--color-destructive-ink); border-color: var(--color-destructive-border); }
 .btn-danger-fill { background: var(--color-destructive); color: #FFFFFF; }
-.btn-sm { min-height: 42px; padding: 0 12px; font-size: 14px; }
+.btn-sm { min-height: 44px; padding: 0 12px; font-size: 14px; }
+.btn-block { width: 100%; }
+
+.link-btn {
+  min-height: 44px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--color-secondary-ink);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
 
 .icon-btn {
   display: inline-flex;
@@ -199,9 +218,8 @@ button { touch-action: manipulation; }
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .btn-primary:hover { background: var(--color-primary-hover); }
-  .btn-secondary:hover, .icon-btn:hover { background: var(--color-muted); }
-  .btn-ghost:hover { background: var(--color-muted); }
+  .btn-primary:not(:disabled):hover { background: var(--color-primary-hover); }
+  .btn-secondary:not(:disabled):hover, .icon-btn:hover, .btn-ghost:hover, .link-btn:hover { background: var(--color-muted); }
   .tx-row-btn:hover, .account-row-btn:hover { background: var(--color-muted); }
 }
 
@@ -221,6 +239,51 @@ button { touch-action: manipulation; }
 .section-title { margin: 0; font-size: 16px; font-weight: 600; line-height: 1.3; color: var(--color-foreground); }
 .sub-caption { margin: 2px 0 0; font-size: 13px; font-weight: 500; color: var(--color-muted-foreground); line-height: 1.35; }
 .app-version { margin: 4px 0 0; text-align: center; font-size: 12px; font-weight: 500; color: var(--color-muted-foreground); }
+
+.lock-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 28px 20px;
+  gap: 12px;
+}
+
+.lock-badge {
+  width: 56px;
+  height: 56px;
+  border-radius: 18px;
+  background: var(--color-secondary-soft);
+  color: var(--color-secondary-ink);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+
+.lock-card-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--color-foreground);
+  line-height: 1.3;
+}
+
+.lock-card-copy {
+  margin: 0;
+  font-size: 14px;
+  color: var(--color-muted-foreground);
+  max-width: 28ch;
+  line-height: 1.45;
+}
+
+.lock-card-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  margin-top: 4px;
+}
 
 .banner { display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: var(--radius-card); border: 1px solid var(--color-border); animation: bannerEnter 180ms var(--ease-out); }
 .banner-warning { background: var(--color-warning-bg); border-color: var(--color-warning-border); color: var(--color-warning-ink); }
@@ -299,6 +362,7 @@ button { touch-action: manipulation; }
 .pill { display: inline-flex; align-items: center; min-height: 22px; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; flex: none; }
 .pill-neutral { background: var(--color-muted); color: var(--color-label); }
 .pill-positive { background: var(--color-positive-bg); color: var(--color-positive-ink); }
+.pill-secondary { background: var(--color-secondary-soft); color: var(--color-secondary-ink); }
 
 /* ==========================================================================
    FORMS, SEGMENTED TOGGLES, CHIPS & MANAGE
@@ -320,6 +384,41 @@ button { touch-action: manipulation; }
 
 .text-input, .select-input { width: 100%; min-height: 48px; padding: 0 12px; border: 1px solid var(--color-control); border-radius: var(--radius-control); background: var(--color-card); color: var(--color-foreground); font-size: 16px; }
 .text-input:focus, .select-input:focus { outline: 2px solid var(--color-secondary); outline-offset: 1px; }
+.text-input:disabled { opacity: 0.6; cursor: not-allowed; background: var(--color-muted); }
+
+.pin-input {
+  letter-spacing: 0.25em;
+  font-size: 20px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.input-with-toggle {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.input-with-toggle .text-input {
+  padding-right: 52px;
+}
+.input-eye-btn {
+  position: absolute;
+  right: 2px;
+  min-width: 44px;
+  min-height: 44px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--color-muted-foreground);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.input-eye-btn:focus-visible { outline: 2px solid var(--color-secondary); outline-offset: 1px; }
+@media (hover: hover) and (pointer: fine) {
+  .input-eye-btn:hover { color: var(--color-foreground); background: var(--color-muted); }
+}
 
 .chip-wrap { display: flex; flex-wrap: wrap; gap: 8px; }
 .chip-btn { min-height: 48px; padding: 0 16px; border-radius: var(--radius-chip); border: 1px solid var(--color-control); background: var(--color-card); color: var(--color-foreground); font-size: 15px; font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; transition: background-color 140ms var(--ease-out), border-color 140ms var(--ease-out), transform 140ms var(--ease-out); }

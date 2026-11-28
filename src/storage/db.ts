@@ -6,13 +6,19 @@ import {
   type BackupPayload,
   type BankAccount,
   type Category,
+  type SecurityRecord,
+  type SecurityThrottleRecord,
   type Transaction,
 } from '../domain/types';
 import { validateBackupPayload } from '../domain/validation';
 
 const DEFAULT_DB_NAME = 'mom-expense-tracker';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const SETTINGS_KEY = 'app' as const;
+const SECURITY_KEY = 'lock' as const;
+const SECURITY_THROTTLE_KEY = 'throttle' as const;
+const MAX_FAILED_AUTH_ATTEMPTS = 5;
+const AUTH_COOLDOWN_MS = 30_000;
 
 export interface SettingsRecord extends AppSettings {
   key: typeof SETTINGS_KEY;
@@ -38,6 +44,10 @@ export interface MomExpenseDbSchema extends DBSchema {
   settings: {
     key: typeof SETTINGS_KEY;
     value: SettingsRecord;
+  };
+  security: {
+    key: typeof SECURITY_KEY | typeof SECURITY_THROTTLE_KEY;
+    value: SecurityRecord | SecurityThrottleRecord;
   };
 }
 
@@ -125,6 +135,9 @@ export async function openAppDb(
       }
       if (!db.objectStoreNames.contains('settings')) {
         db.createObjectStore('settings', { keyPath: 'key' });
+      }
+      if (!db.objectStoreNames.contains('security')) {
+        db.createObjectStore('security', { keyPath: 'key' });
       }
     },
   });
@@ -369,4 +382,199 @@ export async function restoreBackupAtomic(
     transactions: sortTransactions(transactions),
     settings: nextSettings,
   };
+}
+
+function isSecurityLockRecord(
+  record: SecurityRecord | SecurityThrottleRecord | undefined
+): record is SecurityRecord {
+  return Boolean(record && record.key === SECURITY_KEY);
+}
+
+function toNonNegativeCount(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0
+    ? Math.floor(value)
+    : 0;
+}
+
+function toNonNegativeTimestamp(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0;
+}
+
+function normalizeThrottleRecord(
+  record: SecurityRecord | SecurityThrottleRecord | undefined
+): SecurityThrottleRecord {
+  if (!record || record.key !== SECURITY_THROTTLE_KEY) {
+    return {
+      key: SECURITY_THROTTLE_KEY,
+      failedPinAttempts: 0,
+      pinCooldownUntil: 0,
+      failedMasterAttempts: 0,
+      masterCooldownUntil: 0,
+    };
+  }
+  return {
+    key: SECURITY_THROTTLE_KEY,
+    failedPinAttempts: toNonNegativeCount(record.failedPinAttempts),
+    pinCooldownUntil: toNonNegativeTimestamp(record.pinCooldownUntil),
+    failedMasterAttempts: toNonNegativeCount(record.failedMasterAttempts),
+    masterCooldownUntil: toNonNegativeTimestamp(record.masterCooldownUntil),
+  };
+}
+
+/**
+ * Loads the persisted PIN/Master Password security record, or `null` if lock is not enabled.
+ */
+export async function loadSecurityRecord(
+  db: IDBPDatabase<MomExpenseDbSchema>
+): Promise<SecurityRecord | null> {
+  const record = await db.get('security', SECURITY_KEY);
+  return isSecurityLockRecord(record) ? record : null;
+}
+
+/**
+ * Persists the PIN/Master Password security record and clears any stale throttle state atomically.
+ */
+export async function saveSecurityRecord(
+  db: IDBPDatabase<MomExpenseDbSchema>,
+  record: SecurityRecord
+): Promise<void> {
+  const tx = db.transaction('security', 'readwrite');
+  const store = tx.objectStore('security');
+  await Promise.all([store.put(record), store.delete(SECURITY_THROTTLE_KEY)]);
+  await tx.done;
+}
+
+/**
+ * Atomically creates the PIN/Master Password security record only if none exists yet, clearing stale throttle state.
+ */
+export async function createSecurityRecordIfAbsent(
+  db: IDBPDatabase<MomExpenseDbSchema>,
+  record: SecurityRecord
+): Promise<{ created: true } | { created: false; existing: SecurityRecord }> {
+  const tx = db.transaction('security', 'readwrite');
+  const store = tx.objectStore('security');
+  const existing = await store.get(SECURITY_KEY);
+  if (isSecurityLockRecord(existing)) {
+    await tx.done;
+    return { created: false, existing };
+  }
+  await Promise.all([store.put(record), store.delete(SECURITY_THROTTLE_KEY)]);
+  await tx.done;
+  return { created: true };
+}
+
+/**
+ * Loads persisted PIN and Master Password attempt counts and cooldown deadlines.
+ */
+export async function loadSecurityThrottle(
+  db: IDBPDatabase<MomExpenseDbSchema>
+): Promise<SecurityThrottleRecord> {
+  const record = await db.get('security', SECURITY_THROTTLE_KEY);
+  return normalizeThrottleRecord(record);
+}
+
+/**
+ * Atomically records a failed PIN or Master Password attempt and activates a 30s cooldown at 5 failures.
+ */
+export async function recordFailedAttemptAtomic(
+  db: IDBPDatabase<MomExpenseDbSchema>,
+  target: 'pin' | 'master',
+  nowMs: number = Date.now(),
+  maxAttempts: number = MAX_FAILED_AUTH_ATTEMPTS,
+  cooldownMs: number = AUTH_COOLDOWN_MS
+): Promise<SecurityThrottleRecord> {
+  const tx = db.transaction('security', 'readwrite');
+  const store = tx.objectStore('security');
+  const current = normalizeThrottleRecord(await store.get(SECURITY_THROTTLE_KEY));
+
+  let next: SecurityThrottleRecord;
+  if (target === 'pin') {
+    const failedPinAttempts = current.failedPinAttempts + 1;
+    next = {
+      ...current,
+      failedPinAttempts,
+      pinCooldownUntil: failedPinAttempts >= maxAttempts ? nowMs + cooldownMs : current.pinCooldownUntil,
+    };
+  } else {
+    const failedMasterAttempts = current.failedMasterAttempts + 1;
+    next = {
+      ...current,
+      failedMasterAttempts,
+      masterCooldownUntil:
+        failedMasterAttempts >= maxAttempts ? nowMs + cooldownMs : current.masterCooldownUntil,
+    };
+  }
+
+  await store.put(next);
+  await tx.done;
+  return next;
+}
+
+/**
+ * Atomically clears persisted PIN, Master Password, or all throttle counters and cooldowns.
+ */
+export async function clearSecurityThrottle(
+  db: IDBPDatabase<MomExpenseDbSchema>,
+  scope: 'all' | 'pin' | 'master' = 'all'
+): Promise<SecurityThrottleRecord> {
+  const tx = db.transaction('security', 'readwrite');
+  const store = tx.objectStore('security');
+  if (scope === 'all') {
+    await store.delete(SECURITY_THROTTLE_KEY);
+    await tx.done;
+    return normalizeThrottleRecord(undefined);
+  }
+
+  const current = normalizeThrottleRecord(await store.get(SECURITY_THROTTLE_KEY));
+  const next: SecurityThrottleRecord =
+    scope === 'pin'
+      ? { ...current, failedPinAttempts: 0, pinCooldownUntil: 0 }
+      : { ...current, failedMasterAttempts: 0, masterCooldownUntil: 0 };
+
+  if (
+    next.failedPinAttempts === 0 &&
+    next.pinCooldownUntil === 0 &&
+    next.failedMasterAttempts === 0 &&
+    next.masterCooldownUntil === 0
+  ) {
+    await store.delete(SECURITY_THROTTLE_KEY);
+  } else {
+    await store.put(next);
+  }
+  await tx.done;
+  return next;
+}
+
+/**
+ * Removes the persisted PIN/Master Password security lock and throttle records.
+ */
+export async function deleteSecurityRecord(
+  db: IDBPDatabase<MomExpenseDbSchema>
+): Promise<void> {
+  const tx = db.transaction('security', 'readwrite');
+  const store = tx.objectStore('security');
+  await Promise.all([store.delete(SECURITY_KEY), store.delete(SECURITY_THROTTLE_KEY)]);
+  await tx.done;
+}
+
+/**
+ * Atomically restores a previously deleted transaction and decrements `changesSinceLastBackup` (clamped to `>= 0`).
+ */
+export async function restoreDeletedTransactionAtomic(
+  db: IDBPDatabase<MomExpenseDbSchema>,
+  record: Transaction
+): Promise<AppSettings> {
+  const tx = db.transaction(['transactions', 'settings'], 'readwrite');
+  const settingsStore = tx.objectStore('settings');
+
+  await tx.objectStore('transactions').put(record);
+  const current = toAppSettings(await settingsStore.get(SETTINGS_KEY));
+  const nextSettings: AppSettings = {
+    ...current,
+    changesSinceLastBackup: Math.max(0, current.changesSinceLastBackup - 1),
+  };
+  await settingsStore.put(toSettingsRecord(nextSettings));
+  await tx.done;
+
+  return nextSettings;
 }
