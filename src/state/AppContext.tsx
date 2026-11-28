@@ -963,7 +963,6 @@ export function AppProvider({
             error: 'PIN lock is already enabled. Please unlock with your existing PIN.',
           };
         }
-        await clearSecurityThrottle(db, 'all');
         securityRecordRef.current = record;
         setSecurityRecord(record);
         backgroundedAtRef.current =
@@ -1002,7 +1001,6 @@ export function AppProvider({
           updatedAt: new Date().toISOString(),
         };
         await saveSecurityRecord(db, updated);
-        await clearSecurityThrottle(db, 'all');
         securityRecordRef.current = updated;
         setSecurityRecord(updated);
         backgroundedAtRef.current =
@@ -1042,7 +1040,6 @@ export function AppProvider({
         };
         const db = await getDb();
         await saveSecurityRecord(db, updated);
-        await clearSecurityThrottle(db, 'all');
         securityRecordRef.current = updated;
         setSecurityRecord(updated);
         backgroundedAtRef.current =

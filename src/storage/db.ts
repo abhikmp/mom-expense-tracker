@@ -432,17 +432,20 @@ export async function loadSecurityRecord(
 }
 
 /**
- * Persists the PIN/Master Password security record.
+ * Persists the PIN/Master Password security record and clears any stale throttle state atomically.
  */
 export async function saveSecurityRecord(
   db: IDBPDatabase<MomExpenseDbSchema>,
   record: SecurityRecord
 ): Promise<void> {
-  await db.put('security', record);
+  const tx = db.transaction('security', 'readwrite');
+  const store = tx.objectStore('security');
+  await Promise.all([store.put(record), store.delete(SECURITY_THROTTLE_KEY)]);
+  await tx.done;
 }
 
 /**
- * Atomically creates the PIN/Master Password security record only if none exists yet.
+ * Atomically creates the PIN/Master Password security record only if none exists yet, clearing stale throttle state.
  */
 export async function createSecurityRecordIfAbsent(
   db: IDBPDatabase<MomExpenseDbSchema>,
@@ -455,7 +458,7 @@ export async function createSecurityRecordIfAbsent(
     await tx.done;
     return { created: false, existing };
   }
-  await store.put(record);
+  await Promise.all([store.put(record), store.delete(SECURITY_THROTTLE_KEY)]);
   await tx.done;
   return { created: true };
 }

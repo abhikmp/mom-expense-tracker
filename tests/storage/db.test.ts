@@ -560,5 +560,42 @@ describe('IndexedDB persistence layer', () => {
       failedMasterAttempts: 0,
       masterCooldownUntil: 0,
     });
+
+    // createSecurityRecordIfAbsent and saveSecurityRecord clear stale throttle atomically
+    await recordFailedAttemptAtomic(db, 'pin', 300_000);
+    const lockRecord: SecurityRecord = {
+      key: 'lock',
+      pinHash: {
+        algorithm: 'PBKDF2-SHA256',
+        iterations: 100_000,
+        saltB64: 'c2FsdDE=',
+        hashB64: 'aGFzaDE=',
+      },
+      masterPasswordHash: {
+        algorithm: 'PBKDF2-SHA256',
+        iterations: 100_000,
+        saltB64: 'c2FsdDI=',
+        hashB64: 'aGFzaDI=',
+      },
+      updatedAt: '2026-11-27T12:00:00.000Z',
+    };
+    await expect(createSecurityRecordIfAbsent(db, lockRecord)).resolves.toEqual({ created: true });
+    await expect(loadSecurityThrottle(db)).resolves.toEqual({
+      key: 'throttle',
+      failedPinAttempts: 0,
+      pinCooldownUntil: 0,
+      failedMasterAttempts: 0,
+      masterCooldownUntil: 0,
+    });
+
+    await recordFailedAttemptAtomic(db, 'master', 300_005);
+    await saveSecurityRecord(db, { ...lockRecord, updatedAt: '2026-11-27T12:05:00.000Z' });
+    await expect(loadSecurityThrottle(db)).resolves.toEqual({
+      key: 'throttle',
+      failedPinAttempts: 0,
+      pinCooldownUntil: 0,
+      failedMasterAttempts: 0,
+      masterCooldownUntil: 0,
+    });
   });
 });
